@@ -35,6 +35,23 @@ FILTER_KEYS = ["f_vendor", "f_cwe", "f_month", "f_sev", "f_exploit", "f_query"]
 BLUE, TEAL, PURPLE, GRAY = "#4589FF", "#009D9A", "#A56EFF", "#8D8D8D"
 YES, NO = "✓", "–"
 
+# Colors that carry meaning, used the same way on every page (and explained in a legend):
+#   CVSS severity -> red / orange / yellow / green, EPSS -> purple (stronger = likelier),
+#   public exploit code -> magenta. Tints are see-through so they read on light and dark.
+SEV_COLOR = {"CRITICAL": "#FA4D56", "HIGH": "#FF832B", "MEDIUM": "#F1C21B", "LOW": "#42BE65"}
+SEV_MD = {"CRITICAL": "red", "HIGH": "orange", "MEDIUM": "yellow", "LOW": "green"}
+EPSS_RGB, EXPLOIT_RGB = (165, 110, 255), (238, 83, 150)
+
+
+def rgba(color, alpha):
+    if isinstance(color, str):
+        color = tuple(int(color[i : i + 2], 16) for i in (1, 3, 5))
+    return f"rgba({color[0]},{color[1]},{color[2]},{alpha:.2f})"
+
+
+def epss_alpha(value):
+    return 0.10 + 0.55 * min(max(float(value), 0.0), 1.0)
+
 
 # ---------------------------------------------------------------- data
 
@@ -82,13 +99,26 @@ def short(text, limit=40):
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def cwe_label(name, cwe_id):
+def cwe_label(name, cwe_id, limit=40):
     """Readable, unique label: the common name in brackets if there is one, plus the CWE id."""
     name = str(name)
     if "('" in name and name.endswith("')"):
         name = name[name.index("('") + 2 : -2]
-    name = short(name, 40)
-    return f"{name} · {cwe_id}" if not is_blank(cwe_id) else name
+    name = short(name, limit)
+    real_id = not is_blank(cwe_id) and str(cwe_id).upper().startswith("CWE-")
+    return f"{name} · {cwe_id}" if real_id else name
+
+
+def reason_kind(text):
+    """Which color a reason pill gets: EPSS, exploit code, exposure or vendor."""
+    t = text.lower()
+    if t.startswith("epss"):
+        return "epss"
+    if any(w in t for w in ("poc", "nuclei", "metasploit", "exploit")):
+        return "exploit"
+    if "vendor" in t:
+        return "vendor"
+    return "net"
 
 
 def reasons(row):
@@ -109,20 +139,21 @@ def flag_text(row):
 def severity_html(row):
     sev = "" if is_blank(row["cvss3_severity"]) else str(row["cvss3_severity"]).upper()
     if is_blank(row["cvss3_score"]):
-        return '<span>CVSS –</span>'
-    css = {"CRITICAL": "ff-crit", "HIGH": "ff-high"}.get(sev, "")
-    return f'<span class="{css}">CVSS {row["cvss3_score"]:.1f} {esc(sev)}</span>'
+        return '<span class="ff-tag">CVSS –</span>'
+    color = SEV_COLOR.get(sev, GRAY)
+    return (f'<span class="ff-tag" style="background:{rgba(color, .22)}">'
+            f'<i style="background:{color}"></i>CVSS {row["cvss3_score"]:.1f} {esc(sev.title())}</span>')
 
 
 # ---------------------------------------------------------------- navigation callbacks
 
 def open_detail(cve_id):
-    st.session_state["page"] = "CVE Detail"
+    st.session_state["page"] = st.session_state["_last_page"] = "CVE Detail"
     st.session_state["detail_cve"] = cve_id
 
 
 def open_page(name):
-    st.session_state["page"] = name
+    st.session_state["page"] = st.session_state["_last_page"] = name
 
 
 def clear_filters():
@@ -207,10 +238,74 @@ CSS = """
 .ff-card-meta{margin:6px 0 12px;font-size:14px;line-height:1.4;color:var(--ff-muted)}
 .ff-pills{display:flex;flex-wrap:wrap;gap:8px}
 .ff-pill{font-size:12px;padding:4px 10px;border-radius:24px;background:color-mix(in srgb,#4589FF 16%,transparent);color:var(--ff-accent)}
-.ff-signals{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:14px;font-size:13px;color:var(--ff-muted)}
-.ff-crit{color:color-mix(in srgb,#FA4D56 65%,currentColor)}
-.ff-high{color:color-mix(in srgb,#FF832B 65%,currentColor)}
-.ff-yes{color:color-mix(in srgb,#42BE65 60%,currentColor)}
+.ff-pill.epss{background:rgba(165,110,255,.18);color:color-mix(in srgb,#A56EFF 72%,currentColor)}
+.ff-pill.exploit{background:rgba(238,83,150,.18);color:color-mix(in srgb,#EE5396 72%,currentColor)}
+.ff-pill.vendor{background:rgba(0,157,154,.18);color:color-mix(in srgb,#009D9A 75%,currentColor)}
+.ff-signals{display:flex;flex-wrap:wrap;gap:6px 8px;margin-top:14px;font-size:13px;color:var(--ff-muted);align-items:center}
+.ff-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;font-size:12px;color:inherit;background:var(--ff-layer);white-space:nowrap}
+.ff-tag i{display:inline-block;width:8px;height:8px;flex:0 0 auto}
+.ff-tag.off{background:none;color:var(--ff-muted)}
+
+.ff-filterbar{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:13px;margin:0}
+.ff-filterbar b{font-weight:600}
+.ff-chip{padding:2px 10px;border-radius:24px;border:1px solid var(--ff-line);background:var(--ff-layer);color:inherit;white-space:nowrap}
+.ff-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--ff-muted);margin:0}
+.ff-legend span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.ff-legend i{display:inline-block;width:10px;height:10px}
+
+/* Header: project name · page tabs · theme switch (wraps onto two lines on narrow screens) */
+.st-key-ffheader{border-bottom:1px solid var(--ff-line);padding-bottom:4px}
+.st-key-ffheader [data-testid="stHorizontalBlock"]{flex-wrap:wrap;row-gap:4px;align-items:center}
+.st-key-ffheader [data-testid="stColumn"]{width:auto !important;min-width:0 !important}
+.st-key-ffheader [data-testid="stColumn"]:nth-child(1),.st-key-ffheader [data-testid="stColumn"]:nth-child(3){flex:0 0 auto !important}
+.st-key-ffheader [data-testid="stColumn"]:nth-child(2){flex:1 1 320px !important}
+.ff-brand{display:flex;flex-direction:column;line-height:1.25;padding-right:12px}
+.ff-brand b{font-size:20px;font-weight:600;letter-spacing:.2px}
+.ff-brand span{font-size:12px;color:var(--ff-muted);white-space:nowrap}
+.st-key-page [data-testid="stButtonGroup"]{gap:0;flex-wrap:wrap}
+.st-key-page button{background:transparent !important;border:0 !important;border-radius:0 !important;min-height:44px;
+  padding:0 14px !important;color:var(--ff-muted) !important;box-shadow:inset 0 -2px 0 transparent !important}
+.st-key-page button[aria-checked="true"]{color:inherit !important;font-weight:600;box-shadow:inset 0 -3px 0 #4589FF !important}
+.st-key-page button:focus-visible{outline:2px solid #4589FF;outline-offset:-2px}
+@media (hover:hover){.st-key-page button:hover{background:var(--ff-layer) !important;color:inherit !important}}
+
+.ff-ico{font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-weight:normal;font-style:normal;
+  letter-spacing:normal;text-transform:none;white-space:nowrap;font-feature-settings:'liga';-webkit-font-smoothing:antialiased}
+.ff-theme{display:inline-flex;border:1px solid var(--ff-line)}
+.ff-theme button,.ff-rail button{position:relative;display:grid;place-items:center;width:40px;height:40px;padding:0;margin:0;
+  background:transparent;border:0;border-radius:0;color:var(--ff-muted);cursor:pointer;font:inherit}
+.ff-theme button[aria-pressed="true"],.ff-rail button[aria-pressed="true"]{background:color-mix(in srgb,currentColor 14%,transparent);color:inherit}
+.ff-theme button:focus-visible,.ff-rail button:focus-visible{outline:2px solid #4589FF;outline-offset:-2px}
+@media (hover:hover){.ff-theme button:hover,.ff-rail button:hover{background:var(--ff-layer);color:inherit}}
+.ff-theme button[aria-pressed="true"]{color:var(--ff-accent)}
+
+/* Mini side menu of tools, fixed on the right edge */
+.ff-rail{position:fixed;right:10px;top:50%;transform:translateY(-50%);z-index:999990;display:flex;flex-direction:column;gap:2px;
+  padding:4px;background:var(--ff-bg,Canvas);border:1px solid var(--ff-line);box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.ff-rail button[hidden]{display:none}
+.ff-rail button[aria-pressed="true"]{color:var(--ff-accent)}
+.ff-theme button[data-tip]::after,.ff-rail button[data-tip]::after{content:attr(data-tip);position:absolute;white-space:nowrap;
+  font-size:12px;padding:4px 8px;background:#393939;color:#F4F4F4;pointer-events:none;opacity:0;transition:opacity 120ms;z-index:2}
+.ff-rail button[data-tip]::after{right:calc(100% + 8px);top:50%;transform:translateY(-50%)}
+.ff-theme button[data-tip]::after{top:calc(100% + 6px);left:50%;transform:translateX(-50%)}
+.ff-theme button:focus-visible::after,.ff-rail button:focus-visible::after{opacity:1}
+@media (hover:hover){.ff-theme button:hover::after,.ff-rail button:hover::after{opacity:1}}
+.stMainBlockContainer{padding-right:72px}
+@media (max-width:640px){.stMainBlockContainer{padding-right:60px}}
+
+/* Streamlit's own menu stays (the rail and the theme buttons use it) but out of sight */
+[data-testid="stMainMenu"]{visibility:hidden}
+[data-testid="stAppDeployButton"]{display:none}
+html.ff-driving [data-testid="stMainMenuPopover"]{opacity:0 !important;pointer-events:none !important}
+
+.ff-footer{display:flex;flex-wrap:wrap;gap:6px 20px;justify-content:space-between;margin-top:32px;padding:16px 0 4px;
+  border-top:1px solid var(--ff-line);font-size:12px;color:var(--ff-muted)}
+.ff-footer b{font-weight:600}
+
+/* Rows that wrap instead of squeezing: KPI tiles (min 200px) and chart cards (min 360px) */
+.st-key-ffkpis [data-testid="stHorizontalBlock"],.st-key-ffrow [data-testid="stHorizontalBlock"]{flex-wrap:wrap;row-gap:1rem}
+.st-key-ffkpis [data-testid="stColumn"]{flex:1 1 200px !important;min-width:min(100%,200px) !important;width:auto !important}
+.st-key-ffrow [data-testid="stColumn"]{flex:1 1 360px !important;min-width:min(100%,360px) !important;width:auto !important}
 
 .ff-box{background:var(--ff-layer);padding:20px 24px;animation:ff-rise 700ms var(--ff-ease) 200ms both}
 .ff-box h2{margin:0 0 8px;font-size:16px;font-weight:600}
@@ -233,7 +328,8 @@ CSS = """
 [data-testid="stColumn"]:has([data-testid="stMetric"]) [data-testid="stElementContainer"],
 [data-testid="stColumn"]:has([data-testid="stMetric"]) [data-testid="stMetric"]{height:100%}
 @media (max-width:640px){[data-testid="stMetric"]{min-height:0}}
-[data-testid="stMetricLabel"] *{white-space:normal !important;overflow:visible !important;text-overflow:clip !important}
+[data-testid="stMetricLabel"] *,[data-testid="stMetricValue"] *{white-space:normal !important;overflow:visible !important;text-overflow:clip !important}
+[data-testid="stMetric"]{box-shadow:inset 0 3px 0 #4589FF}
 [class*="st-key-ffcard"]{background:var(--ff-layer);padding:20px;animation:ff-rise 700ms var(--ff-ease) 240ms backwards}
 [data-testid="stPlotlyChart"]{animation:ff-reveal 1.1s var(--ff-ease) .35s backwards}
 
@@ -252,15 +348,172 @@ CSS = """
 
 # ---------------------------------------------------------------- page pieces
 
-def top_bar():
-    months = ranked["snapshot_month"].dropna().nunique()
-    tag = f"{months} snapshot months" + (" · sample data, placeholder scores" if USING_SAMPLE else "")
+def icon(name):
+    """A Material Symbols icon. The font ships with Streamlit (no network); st.html strips <svg>."""
+    return f'<span class="ff-ico" aria-hidden="true">{name}</span>'
+
+
+ICONS = {
+    "Light": icon("light_mode"),
+    "Dark": icon("dark_mode"),
+    "System": icon("contrast"),
+    "rerun": icon("refresh"),
+    "autoRerun": icon("autorenew"),
+    "clearCache": icon("delete_sweep"),
+    "print": icon("print"),
+    "recordScreencast": icon("radio_button_checked"),
+}
+THEME_BUTTONS = [("Light", "Light theme"), ("Dark", "Dark theme"), ("System", "Use the system theme")]
+RAIL_BUTTONS = [("rerun", "Rerun"), ("autoRerun", "Auto rerun"), ("clearCache", "Clear cache"),
+                ("print", "Print"), ("recordScreencast", "Record screen")]
+
+# The header theme buttons and the side rail drive Streamlit's own main menu (hidden), so the
+# native theme, rerun, cache, print and screen-recording features keep working exactly as before.
+UI_SCRIPT = """
+<script>
+(function () {
+  if (window.__ffUi) { window.__ffUi.sync(); return; }
+  var doc = document, state = { auto: false, items: {}, probed: false };
+  function q(s) { return doc.querySelector(s); }
+  function qa(s) { return Array.prototype.slice.call(doc.querySelectorAll(s)); }
+  function themeNow() {
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k.indexOf('stActiveTheme-') === 0) return JSON.parse(localStorage.getItem(k));
+      }
+    } catch (e) {}
+    return 'System';
+  }
+  function sync() {
+    var t = themeNow();
+    qa('[data-ff-theme]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-ff-theme') === t)); });
+    qa('[data-ff-action]').forEach(function (b) {
+      var id = b.getAttribute('data-ff-action');
+      if (state.probed) b.hidden = !state.items[id];
+      if (id === 'autoRerun') b.setAttribute('aria-pressed', String(state.auto));
+    });
+    var app = q('.stApp');
+    if (app) doc.documentElement.style.setProperty('--ff-bg', getComputedStyle(app).backgroundColor);
+  }
+  function withMenu(fn) {
+    var btn = q('[data-testid="stMainMenuButton"]');
+    if (!btn) return;
+    doc.documentElement.classList.add('ff-driving');
+    if (!q('[data-testid="stMainMenuList"]')) btn.click();
+    var tries = 0;
+    (function wait() {
+      if (q('[data-testid="stMainMenuList"]')) {
+        try { fn(); } catch (e) {}
+        setTimeout(function () {
+          if (q('[data-testid="stMainMenuList"]')) btn.click();
+          doc.documentElement.classList.remove('ff-driving');
+          setTimeout(sync, 150);
+        }, 60);
+      } else if (tries++ < 40) { setTimeout(wait, 25); }
+      else { doc.documentElement.classList.remove('ff-driving'); }
+    })();
+  }
+  doc.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-ff-theme],[data-ff-action]') : null;
+    if (!t) return;
+    var theme = t.getAttribute('data-ff-theme'), action = t.getAttribute('data-ff-action');
+    withMenu(function () {
+      var item = q('[data-testid="stMainMenuItem-' + (theme ? 'theme-' + theme : action) + '"]');
+      if (item) item.click();
+      if (action === 'autoRerun') state.auto = !state.auto;
+    });
+  });
+  window.__ffUi = { sync: sync };
+  var queued = false;
+  new MutationObserver(function () {
+    if (queued) return; queued = true;
+    setTimeout(function () { queued = false; sync(); }, 150);
+  }).observe(doc.body, { childList: true, subtree: true });
+  setTimeout(function () {
+    withMenu(function () {
+      ['rerun', 'autoRerun', 'clearCache', 'print', 'recordScreencast'].forEach(function (id) {
+        state.items[id] = !!q('[data-testid="stMainMenuItem-' + id + '"]');
+      });
+      var a = q('[data-testid="stMainMenuItem-autoRerun"]');
+      state.auto = !!a && (a.getAttribute('aria-checked') === 'true' || !!a.querySelector('input:checked'));
+      state.probed = true;
+    });
+  }, 500);
+  sync();
+})();
+</script>
+"""
+
+
+def remember_page():
+    """The page tabs always keep one page selected (clicking the active tab doesn't clear it)."""
+    if st.session_state.get("page") is None:
+        st.session_state["page"] = st.session_state.get("_last_page", PAGES[0])
+    st.session_state["_last_page"] = st.session_state["page"]
+
+
+def header():
+    """Project name, page tabs, theme switch and the side rail of tools. Returns the open page."""
     st.markdown(CSS, unsafe_allow_html=True)
-    st.html(
-        f'<div class="ff-top"><b>FixNext</b><span class="ff-muted">Before the Breach</span>'
-        f'<span class="ff-spacer"></span><span class="ff-muted" style="font-size:12px">'
-        f'<span class="ff-dot" aria-hidden="true"></span>{esc(tag)}</span></div>'
+    st.session_state.setdefault("page", PAGES[0])
+    tag = "Sample data, placeholder scores" if USING_SAMPLE else "Before the Breach"
+    theme = "".join(
+        f'<button type="button" data-ff-theme="{name}" aria-label="{label}" data-tip="{name}">{ICONS[name]}</button>'
+        for name, label in THEME_BUTTONS
     )
+    rail = "".join(
+        f'<button type="button" data-ff-action="{action}" aria-label="{label}" data-tip="{label}">{ICONS[action]}</button>'
+        for action, label in RAIL_BUTTONS
+    )
+    with st.container(key="ffheader"):
+        brand, nav, tools = st.columns([1, 3, 1], vertical_alignment="center", gap="small")
+        brand.html(f'<div class="ff-brand"><b>FixNext</b><span>{esc(tag)}</span></div>')
+        nav.segmented_control("Page", PAGES, key="page", label_visibility="collapsed", on_change=remember_page)
+        tools.html(
+            f'<div class="ff-theme" role="group" aria-label="Theme">{theme}</div>'
+            f'<nav class="ff-rail" aria-label="App tools">{rail}</nav>' + UI_SCRIPT,
+            unsafe_allow_javascript=True,
+        )
+    return st.session_state.get("page") or PAGES[0]
+
+
+def footer():
+    st.html(
+        '<footer class="ff-footer"><span><b>FixNext</b> · fixnext.select</span>'
+        '<span>Sheridan Datathon 2026 · IBM track</span>'
+        f'<span>Made with Streamlit {esc(st.__version__)}</span></footer>'
+    )
+
+
+def month_label(month):
+    try:
+        return pd.Timestamp(f"{month}-01").strftime("%b %Y")
+    except (ValueError, TypeError):
+        return str(month)
+
+
+def filter_summary(df):
+    """One line above the content saying what is shown and which filters are on."""
+    s = st.session_state
+    chips = []
+    if (s.get("f_query") or "").strip():
+        chips.append(f'Search “{esc(s["f_query"].strip())}”')
+    if s.get("f_sev"):
+        chips.append("Severity: " + ", ".join(esc(str(v).title()) for v in s["f_sev"]))
+    if s.get("f_exploit"):
+        chips.append("Public exploit code only")
+    if s.get("f_vendor"):
+        chips.append("Vendor: " + ", ".join(esc(v) for v in s["f_vendor"]))
+    if s.get("f_cwe"):
+        names = s["f_cwe"]
+        chips.append(f"Weakness: {len(names)} types" if len(names) > 2 else "Weakness: " + ", ".join(esc(short(n, 30)) for n in names))
+    if s.get("f_month"):
+        chips.append("Month: " + ", ".join(esc(month_label(m)) for m in s["f_month"]))
+    lead = f'<span class="ff-muted">Showing</span> <b>{len(df):,}</b> <span class="ff-muted">of {len(ranked):,} CVEs</span>'
+    if not chips:
+        lead += ' <span class="ff-muted">· no filters</span>'
+    st.html(f'<div class="ff-filterbar">{lead}{"".join(f"<span class=ff-chip>{c}</span>" for c in chips)}</div>')
 
 
 def ticker(df):
@@ -311,9 +564,10 @@ def cve_card(row, eyebrow, with_signals=True):
     """The gauge card: rank, CVE id, score ring, reasons and (optionally) the signals line."""
     score = 0.0 if is_blank(row["score"]) else float(row["score"])
     meta = " · ".join(x for x in [cwe_label(row["cwe_name"], row["cwe_primary"]), row["assigner"]] if x)
-    pills = "".join(f'<span class="ff-pill">{esc(r)}</span>' for r in reasons(row))
+    pills = "".join(f'<span class="ff-pill {reason_kind(r)}">{esc(r)}</span>' for r in reasons(row))
     flags = "".join(
-        f'<span>{label} <span class="ff-yes">{YES}</span></span>' if row[col] == 1 else f"<span>{label} {NO}</span>"
+        f'<span class="ff-tag" style="background:{rgba(EXPLOIT_RGB, .22)}"><i style="background:{rgba(EXPLOIT_RGB, 1)}"></i>{label} {YES}</span>'
+        if row[col] == 1 else f'<span class="ff-tag off">{label} {NO}</span>'
         for col, label in FLAGS.items()
     )
     signals = f'<div class="ff-signals">{severity_html(row)}{flags}</div>' if with_signals else ""
@@ -339,61 +593,137 @@ def chart_heading(title, subtitle):
     st.html(f'<h2 class="ff-h2">{esc(title)}</h2><p class="ff-sub">{esc(subtitle)}</p>')
 
 
-def bar_chart(labels, values, colors, hovers, height=340, bargap=0.35):
+def bar_chart(labels, values, colors, hovers, bold=None, row_px=44):
+    """Horizontal bars with each label written above its bar, so long names are never cut
+    by the axis, whatever the width of the column."""
+    n = len(labels)
+    values = [int(v) for v in values]
     fig = go.Figure(
         go.Bar(
-            x=values, y=labels, orientation="h",
+            x=values, y=list(range(n)), orientation="h", width=0.4,
             marker=dict(color=colors, cornerradius=4),
-            text=values, textposition="outside", cliponaxis=False,
+            text=[f"{v:,}" for v in values], textposition="outside", cliponaxis=False,
             customdata=hovers, hovertemplate="%{customdata}<extra></extra>",
         )
     )
+    for i, label in enumerate(labels):
+        text = str(label).replace("<", "&lt;").replace(">", "&gt;")
+        if bold and bold[i]:
+            text = f"<b>{text}</b>"
+        fig.add_annotation(x=0, y=i, xref="x", yref="y", text=text, showarrow=False,
+                           xanchor="left", yanchor="bottom", yshift=10, font=dict(size=12))
     fig.update_layout(
-        height=height, margin=dict(l=0, r=40, t=4, b=4), bargap=bargap, showlegend=False,
+        height=n * row_px + 20, margin=dict(l=0, r=8, t=20, b=0), showlegend=False,
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="IBM Plex Sans, Helvetica Neue, Arial, sans-serif", size=13),
     )
-    fig.update_xaxes(visible=False)
-    fig.update_yaxes(autorange="reversed", automargin=True, showgrid=False, ticks="", title=None)
+    fig.update_xaxes(visible=False, range=[0, (max(values) if values else 1) * 1.15])
+    fig.update_yaxes(visible=False, autorange="reversed")
     st.plotly_chart(fig, theme="streamlit", width="stretch", config={"displayModeBar": False})
 
 
 def table_view(df):
     out = df[["rank", "cve_id", "score", "vendor_guess", "cwe_name", "cvss3_score", "epss"]].copy()
+    # Short weakness names ("OS Command Injection · CWE-78"): the full name is on CVE Detail.
+    out["cwe_name"] = [cwe_label(n, c, limit=24) for n, c in zip(df["cwe_name"], df["cwe_primary"])]
     for col, label in FLAGS.items():
         out[label] = df[col].eq(1).map({True: YES, False: NO})
     return out
 
 
+def styled_table(df):
+    """The table with meaning in color: CVSS by severity, EPSS by strength, exploit code in magenta."""
+    view = table_view(df)
+    severity = df["cvss3_severity"].fillna("").astype(str).str.upper()
+
+    def cvss_css(col):
+        return [f"background-color: {rgba(SEV_COLOR[s], .26)}" if s in SEV_COLOR else "" for s in severity.loc[col.index]]
+
+    def epss_css(col):
+        return ["" if pd.isna(v) else f"background-color: {rgba(EPSS_RGB, epss_alpha(v))}" for v in col]
+
+    def flag_css(col):
+        return [f"background-color: {rgba(EXPLOIT_RGB, .26)}" if v == YES else "" for v in col]
+
+    return (
+        view.style
+        .format({"rank": "{:,.0f}", "score": "{:.2f}", "cvss3_score": "{:.1f}", "epss": "{:.2f}"}, na_rep=NO)
+        .apply(cvss_css, subset=["cvss3_score"])
+        .apply(epss_css, subset=["epss"])
+        .apply(flag_css, subset=list(FLAGS.values()))
+    )
+
+
+def color_legend():
+    sev = "".join(f'<span><i style="background:{c}"></i>{s.title()}</span>' for s, c in SEV_COLOR.items())
+    st.html(
+        f'<div class="ff-legend"><span><b>CVSS</b></span>{sev}'
+        f'<span><i style="background:{rgba(EPSS_RGB, .65)}"></i>EPSS: darker = likelier to be attacked</span>'
+        f'<span><i style="background:{rgba(EXPLOIT_RGB, 1)}"></i>Public exploit code</span>'
+        '<span>EDB = Exploit-DB · MSF = Metasploit · PoC = GitHub proof of concept</span></div>'
+    )
+
+
+# Fixed widths so the whole row fits on a laptop screen; the exploit columns use short
+# headers (full names in the header tooltip and in the legend under the table).
+FLAG_HEADERS = {
+    "Exploit-DB": ("EDB", "Exploit-DB: a public exploit is listed"),
+    "Metasploit": ("MSF", "Metasploit: a module exists"),
+    "Nuclei": ("Nuclei", "Nuclei: a detection template exists"),
+    "GitHub PoC": ("PoC", "GitHub: public proof-of-concept code"),
+}
 TABLE_COLUMNS = {
-    "rank": st.column_config.NumberColumn("Rank", format="%d", width="small"),
-    "cve_id": st.column_config.TextColumn("CVE"),
-    "score": st.column_config.ProgressColumn("Score", min_value=0.0, max_value=1.0, format="%.2f"),
-    "vendor_guess": st.column_config.TextColumn("Vendor"),
-    "cwe_name": st.column_config.TextColumn("Weakness type", width="medium"),
-    "cvss3_score": st.column_config.NumberColumn("CVSS", format="%.1f", width="small"),
-    "epss": st.column_config.NumberColumn("EPSS", format="%.2f", width="small"),
-    **{label: st.column_config.TextColumn(label, width="small") for label in FLAGS.values()},
+    "rank": st.column_config.NumberColumn("Rank", format="%d", width=56),
+    "cve_id": st.column_config.TextColumn("CVE", width=128),
+    "score": st.column_config.ProgressColumn("Score", min_value=0.0, max_value=1.0, format="%.2f", width=112),
+    "vendor_guess": st.column_config.TextColumn("Vendor", width=88),
+    "cwe_name": st.column_config.TextColumn("Weakness type", width=230),
+    "cvss3_score": st.column_config.NumberColumn("CVSS", format="%.1f", width=60, help="CVSS v3 base score, colored by severity"),
+    "epss": st.column_config.NumberColumn("EPSS", format="%.2f", width=60, help="Chance of an attack in the next 30 days"),
+    **{label: st.column_config.TextColumn(short_label, width=60, help=tip) for label, (short_label, tip) in FLAG_HEADERS.items()},
 }
 
 
 # ---------------------------------------------------------------- sidebar
 
-st.sidebar.markdown("**FixNext**  \nBefore the Breach")
-page = st.sidebar.radio("Page", PAGES, key="page")
-
-
 def sidebar_filters(df):
-    """Global filters for Overview and the list. An empty box means 'all'."""
-    st.sidebar.markdown("**Filters**")
+    """Global filters for Overview and the list. Nothing picked means 'all'.
+    Short lists are one-tap chips; long lists are searchable, most common first, with counts."""
+    active = sum(1 for k in FILTER_KEYS if st.session_state.get(k))
+    st.sidebar.markdown("### Filters" + (f" · {active} on" if active else ""))
+
+    query = st.sidebar.text_input("Search", key="f_query", placeholder="CVE id or keyword", icon=":material/search:")
+
     sev_values = [s for s in SEVERITY_ORDER if s in set(df["cvss3_severity"].dropna())]
     sev_values += sorted(set(df["cvss3_severity"].dropna()) - set(sev_values))
-    vendors = st.sidebar.multiselect("Vendor", sorted(df["vendor_guess"].unique()), key="f_vendor", placeholder="All vendors")
-    cwes = st.sidebar.multiselect("Weakness type", sorted(df["cwe_name"].unique()), key="f_cwe", placeholder="All weakness types")
-    months = st.sidebar.multiselect("Snapshot month", sorted(df["snapshot_month"].dropna().unique()), key="f_month", placeholder="All months")
-    sevs = st.sidebar.multiselect("Severity", sev_values, key="f_sev", placeholder="All severities")
-    only_exploit = st.sidebar.checkbox("Only CVEs with public exploit code", key="f_exploit")
-    query = st.sidebar.text_input("Search", key="f_query", placeholder="CVE id or words in the description")
+    sevs = st.sidebar.pills(
+        "Severity", sev_values, selection_mode="multi", key="f_sev",
+        format_func=lambda s: f":{SEV_MD.get(s, 'gray')}[●] {str(s).title()}",
+    )
+    only_exploit = st.sidebar.toggle("Only CVEs with public exploit code", key="f_exploit")
+
+    vendor_counts = df["vendor_guess"].value_counts()
+    vendor_options = [v for v in vendor_counts.index if v != "other"] + (["other"] if "other" in vendor_counts else [])
+    vendors = st.sidebar.multiselect(
+        "Vendor", vendor_options, key="f_vendor", placeholder="All vendors",
+        format_func=lambda v: f"{v} ({vendor_counts[v]:,})",
+    )
+
+    cwe_counts = df["cwe_name"].value_counts()
+    cwe_ids = df.drop_duplicates("cwe_name").set_index("cwe_name")["cwe_primary"]
+    cwes = st.sidebar.multiselect(
+        "Weakness type", cwe_counts.index.tolist(), key="f_cwe", placeholder="All weakness types",
+        format_func=lambda n: f"{cwe_label(n, cwe_ids.get(n), limit=48)} ({cwe_counts[n]:,})",
+    )
+
+    month_values = sorted(df["snapshot_month"].dropna().unique())
+    months = st.sidebar.pills(
+        "Snapshot month", month_values, selection_mode="multi", key="f_month",
+        format_func=lambda m: month_label(m)[:3],
+    )
+
+    if active:
+        st.sidebar.button("Reset filters", on_click=clear_filters, icon=":material/restart_alt:", width="stretch")
 
     mask = pd.Series(True, index=df.index)
     if vendors:
@@ -414,13 +744,12 @@ def sidebar_filters(df):
     return df[mask]
 
 
-filtered = sidebar_filters(ranked) if page in ("Overview", "Fix-Next List") else ranked
-st.sidebar.caption("Theme: open the ⋮ menu (top right) and pick System, Light or Dark.")
-
-
 # ---------------------------------------------------------------- pages
 
-top_bar()
+page = header()
+filtered = sidebar_filters(ranked) if page in ("Overview", "Fix-Next List") else ranked
+if page in ("Overview", "Fix-Next List"):
+    filter_summary(filtered)
 
 if page == "Overview":
     ticker(filtered)
@@ -433,19 +762,21 @@ if page == "Overview":
         cutoff = ranked.head(500)["score"].iloc[-1]
         first = filtered.iloc[0]
 
-        # Four KPI tiles in one row: same height, numbers aligned at the bottom.
-        a, b, c, d = st.columns(4, gap="small")
-        a.metric("CVEs scored", f"{len(filtered):,}")
-        b.metric("Score cut-off for rank 500", f"{cutoff:.3f}", help="Score of the CVE ranked 500th in the full ranking.")
-        pct = f"{top500['has_exploit'].mean():.0%}" if len(top500) else NO
-        c.metric("Top 500 with public exploit code", pct)
-        d.metric("Distinct vendors in top 500", f"{top500['vendor_guess'].nunique():,}")
+        # Four KPI tiles: one row when there's room, 2 × 2 when not; same height, numbers aligned.
+        with st.container(key="ffkpis"):
+            a, b, c, d = st.columns(4, gap="small")
+            a.metric("CVEs scored", f"{len(filtered):,}")
+            b.metric("Score cut-off for rank 500", f"{cutoff:.3f}", help="Score of the CVE ranked 500th in the full ranking.")
+            pct = f"{top500['has_exploit'].mean():.0%}" if len(top500) else NO
+            c.metric("Top 500 with public exploit code", pct)
+            d.metric("Distinct vendors in top 500", f"{top500['vendor_guess'].nunique():,}")
 
         eyebrow = "RANK #1 · FIX THIS NEXT" if int(first["rank"]) == 1 else f"RANK #{int(first['rank'])} · TOP OF YOUR FILTERS"
         cve_card(first, eyebrow)
         st.button("Open in CVE Detail →", on_click=open_detail, args=(first["cve_id"],))
 
-        col1, col2 = st.columns(2, gap="medium")
+        with st.container(key="ffrow"):
+            col1, col2 = st.columns(2, gap="medium")
         with col1:
             with st.container(key="ffcard_backtest"):
                 positives = int(backtest["positives_available"].max())
@@ -460,7 +791,7 @@ if page == "Overview":
                     backtest["hits_at_500"].tolist(),
                     [BLUE if ours else GRAY for ours in is_ours],
                     [f"{m}: {h} of {positives} exploited CVEs in its top 500" for m, h in zip(methods, backtest["hits_at_500"])],
-                    bargap=0.45,
+                    bold=is_ours.tolist(),
                 )
         with col2:
             with st.container(key="ffcard_vendors"):
@@ -484,7 +815,8 @@ if page == "Overview":
 
         with st.container(key="ffcard_top5"):
             chart_heading("Top of the fix-next list", "The 5 highest-ranked CVEs that match your filters")
-            st.dataframe(table_view(filtered.head(5)), hide_index=True, width="stretch", column_config=TABLE_COLUMNS)
+            st.dataframe(styled_table(filtered.head(5)), hide_index=True, width="stretch", column_config=TABLE_COLUMNS)
+            color_legend()
             st.button("Open the full list →", on_click=open_page, args=("Fix-Next List",))
 
 elif page == "Fix-Next List":
@@ -495,8 +827,9 @@ elif page == "Fix-Next List":
         empty_state("No CVEs match these filters", "Clear a filter in the sidebar to see results.")
     else:
         shown = filtered.head(top_n)
-        st.caption(f"{len(filtered):,} CVEs match your filters. Showing the top {len(shown):,}.")
-        st.dataframe(table_view(shown), hide_index=True, width="stretch", height=560, column_config=TABLE_COLUMNS)
+        st.caption(f"Showing the top {len(shown):,} of {len(filtered):,} matching CVEs.")
+        st.dataframe(styled_table(shown), hide_index=True, width="stretch", height=560, column_config=TABLE_COLUMNS)
+        color_legend()
 
     # The submission file: always the first 500 of the FULL ranking, one column, filters ignored.
     submission = ranked.head(500)[["cve_id"]].to_csv(index=False)
@@ -517,17 +850,23 @@ elif page == "CVE Detail":
     body = esc(rationale) if rationale else '<span class="ff-pending">Granite rationale pending for this CVE</span>'
     st.html(f'<div class="ff-box"><h2>Why fix this next</h2><p>{body}</p></div>')
 
-    sev = "" if is_blank(row["cvss3_severity"]) else f" {row['cvss3_severity']}"
+    severity = "" if is_blank(row["cvss3_severity"]) else str(row["cvss3_severity"]).upper()
+    cvss_text = NO if is_blank(row["cvss3_score"]) else f"{row['cvss3_score']:.1f} {severity.title()}".strip()
+    # (label, value, tint): the same color meaning as the table and its legend.
     tiles = [
-        ("EPSS", fmt(row["epss"])),
-        ("CVSS", fmt(row["cvss3_score"], "{:.1f}") + (sev if not is_blank(row["cvss3_score"]) else "")),
-        ("Attack vector", NO if is_blank(row["attack_vector"]) else str(row["attack_vector"]).replace("_", " ")),
-    ] + [(label, YES if row[col] == 1 else NO) for col, label in FLAGS.items()]
+        ("EPSS", fmt(row["epss"]), None if is_blank(row["epss"]) else rgba(EPSS_RGB, epss_alpha(row["epss"]))),
+        ("CVSS", cvss_text, rgba(SEV_COLOR[severity], .26) if severity in SEV_COLOR and cvss_text != NO else None),
+        ("Attack vector", NO if is_blank(row["attack_vector"]) else str(row["attack_vector"]).replace("_", " ").title(), None),
+    ] + [(label, YES if row[col] == 1 else NO, rgba(EXPLOIT_RGB, .26) if row[col] == 1 else None) for col, label in FLAGS.items()]
     st.html(
         '<h2 class="ff-h2" style="margin:8px 0 10px">Signals</h2><div class="ff-tiles">'
-        + "".join(f'<div class="ff-tile"><span>{esc(k)}</span><b>{esc(v)}</b></div>' for k, v in tiles)
+        + "".join(
+            f'<div class="ff-tile"{f" style={chr(39)}background:{bg}{chr(39)}" if bg else ""}><span>{esc(k)}</span><b>{esc(v)}</b></div>'
+            for k, v, bg in tiles
+        )
         + "</div>"
     )
+    color_legend()
 
     st.subheader("Description")
     st.write(row["description"] or "No description.")
@@ -559,3 +898,5 @@ Allowed (known at publish / end of snapshot month): `description`, `assigner`, `
 **Not used for 2026 features:** `nvd_status`, `n_references`, `n_affected_cpes`, `last_modified`, `cvss3_source`, `references.csv`, `affected_products.csv` — NIST fills these in after attacks, so they leak the answer. `src/config.py::assert_no_leakage` enforces this.
 """
     )
+
+footer()
