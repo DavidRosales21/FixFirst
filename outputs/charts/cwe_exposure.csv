@@ -1,0 +1,72 @@
+cwe_id,name,short_name,cves,kev,rate_pct,lift
+CWE-843,Access of Resource Using Incompatible Type ('Type Confusion'),Type Confusion,401,25,6.234413965087282,12.433629947272042
+CWE-288,Authentication Bypass Using an Alternate Path or Channel,Authentication Bypass Using an..,339,11,3.2448377581120944,6.471355952497579
+CWE-306,Missing Authentication for Critical Function,Missing Authentication for Cri..,1115,27,2.4215246636771304,4.829377988847154
+CWE-502,Deserialization of Untrusted Data,Deserialization of Untrusted D..,1626,34,2.091020910209102,4.170236425611489
+CWE-78,Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection'),OS Command Injection,2848,52,1.8258426966292134,3.6413771300634354
+CWE-94,Improper Control of Generation of Code ('Code Injection'),Code Injection,1765,26,1.4730878186968839,2.9378589423288
+CWE-416,Use After Free,Use After Free,4027,59,1.465110504097343,2.9219493511051327
+CWE-290,Authentication Bypass by Spoofing,Authentication Bypass by Spoof..,377,5,1.3262599469496021,2.6450321532393044
+CWE-367,Time-of-check Time-of-use (TOCTOU) Race Condition,Time-of-check Time-of-use (TOC..,384,5,1.3020833333333335,2.5968154212792136
+CWE-754,Improper Check for Unusual or Exceptional Conditions,Improper Check for Unusual or ..,329,4,1.21580547112462,2.4247468006594963
+CWE-287,Improper Authentication,Improper Authentication,1661,20,1.2040939193257074,2.4013898176308675
+CWE-22,Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal'),Path Traversal,4160,42,1.0096153846153846,2.0135307266534204
+CWE-863,Incorrect Authorization,Incorrect Authorization,1518,14,0.922266139657444,1.839325389301324
+CWE-787,Out-of-bounds Write,Out-of-bounds Write,6073,56,0.9221142763049565,1.8390225199798518
+CWE-122,Heap-based Buffer Overflow,Heap-based Buffer Overflow,1528,13,0.8507853403141361,1.6967673537991925
+CWE-77,Improper Neutralization of Special Elements used in a Command ('Command Injection'),Command Injection,2018,17,0.8424182358771061,1.6800803835590388
+CWE-611,Improper Restriction of XML External Entity Reference,Improper Restriction of XML Ex..,594,5,0.8417508417508417,1.6787493632512083
+CWE-798,Use of Hard-coded Credentials,Use of Hard-coded Credentials,751,6,0.7989347536617843,1.59335891627891
+CWE-20,Improper Input Validation,Improper Input Validation,3419,27,0.7897045919859609,1.5749507041721487
+CWE-918,Server-Side Request Forgery (SSRF),Server-Side Request Forgery (S..,1460,11,0.7534246575342466,1.502595662942931
+CWE-59,Improper Link Resolution Before File Access ('Link Following'),Link Following,534,4,0.7490636704119851,1.4938983097696148
+CWE-190,Integer Overflow or Wraparound,Integer Overflow or Wraparound,1212,9,0.7425742574257426,1.4809561214424025
+CWE-345,Insufficient Verification of Data Authenticity,Insufficient Verification of D..,303,2,0.6600660066006601,1.3164054412821358
+CWE-119,Improper Restriction of Operations within the Bounds of a Memory Buffer,Improper Restriction of Operat..,2317,15,0.6473888649115235,1.2911227299584174
+CWE-362,Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition'),Race Condition,1146,7,0.6108202443280977,1.218191946317369
+CWE-347,Improper Verification of Cryptographic Signature,Improper Verification of Crypt..,340,2,0.5882352941176471,1.173149555024962
+CWE-284,Improper Access Control,Improper Access Control,2726,16,0.586940572267058,1.1705674210080326
+CWE-269,Improper Privilege Management,Improper Privilege Management,1664,9,0.5408653846153846,1.0786771749929038
+(none),,(none),13480,72,0.5341246290801187,1.0652337205864642
+CWE-121,Stack-based Buffer Overflow,Stack-based Buffer Overflow,2068,11,0.5319148936170213,1.0608267252885295
+CWE-295,Improper Certificate Validation,Improper Certificate Validation,603,3,0.4975124378109453,0.9922160415634007
+CWE-908,Use of Uninitialized Resource,Use of Uninitialized Resource,428,2,0.46728971962616817,0.9319412353002035
+CWE-434,Unrestricted Upload of File with Dangerous Type,Unrestricted Upload of File wi..,2532,9,0.35545023696682465,0.7088936884629511
+CWE-129,Improper Validation of Array Index,Improper Validation of Array I..,303,1,0.33003300330033003,0.6582027206410679
+CWE-532,Insertion of Sensitive Information into Log File,Insertion of Sensitive Informa..,629,2,0.3179650238473768,0.6341348946080877
+CWE-835,Loop with Unreachable Exit Condition ('Infinite Loop'),Infinite Loop,321,1,0.3115264797507788,0.6212941568668023
+CWE-209,Generation of Error Message Containing Sensitive Information,Generation of Error Message Co..,345,1,0.2898550724637681,0.5780736937804161
+CWE-120,Buffer Copy without Checking Size of Input ('Classic Buffer Overflow'),Classic Buffer Overflow,2520,6,0.2380952380952381,0.4748462484624847
+CWE-415,Double Free,Double Free,426,1,0.2347417840375587,0.4681582731320271
+CWE-125,Out-of-bounds Read,Out-of-bounds Read,4703,11,0.2338932596215182,0.4664660148621474
+CWE-200,Exposure of Sensitive Information to an Unauthorized Actor,Exposure of Sensitive Informat..,3025,7,0.23140495867768596,0.46150346131560493
+CWE-74,Improper Neutralization of Special Elements in Output Used by a Downstream Component ('Injection'),Injection,3253,7,0.21518598217030432,0.4291570766921933
+CWE-667,Improper Locking,Improper Locking,496,1,0.20161290322580644,0.40208754910129746
+CWE-203,Observable Discrepancy,Observable Discrepancy,499,1,0.2004008016032064,0.3996701890866604
+CWE-522,Insufficiently Protected Credentials,Insufficiently Protected Crede..,509,1,0.19646365422396855,0.3918181225034254
+CWE-89,Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection'),SQL Injection,8531,13,0.15238541788770368,0.3039105048183292
+CWE-285,Improper Authorization,Improper Authorization,665,1,0.15037593984962408,0.2999028937657798
+CWE-732,Incorrect Permission Assignment for Critical Resource,Incorrect Permission Assignmen..,672,1,0.1488095238095238,0.2967789052890529
+CWE-862,Missing Authorization,Missing Authorization,5385,7,0.12999071494893222,0.2592475339795181
+CWE-400,Uncontrolled Resource Consumption,Uncontrolled Resource Consumpt..,1661,2,0.12040939193257075,0.24013898176308676
+CWE-276,Incorrect Default Permissions,Incorrect Default Permissions,990,1,0.10101010101010101,0.20144992359014502
+CWE-401,Missing Release of Memory after Effective Lifetime,Missing Release of Memory afte..,1229,1,0.08136696501220504,0.16227455195626
+CWE-79,Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting'),Cross-site Scripting,25755,15,0.05824111822947001,0.11615342128960021
+CWE-352,Cross-Site Request Forgery (CSRF),Cross-Site Request Forgery (CS..,5769,1,0.017334026694401112,0.034570189695656714
+CWE-668,Exposure of Resource to Wrong Sphere,Exposure of Resource to Wrong ..,305,0,0.0,0.0
+CWE-1321,Improperly Controlled Modification of Object Prototype Attributes ('Prototype Pollution'),Prototype Pollution,340,0,0.0,0.0
+CWE-1333,Inefficient Regular Expression Complexity,Inefficient Regular Expression..,361,0,0.0,0.0
+CWE-266,Incorrect Privilege Assignment,Incorrect Privilege Assignment,619,0,0.0,0.0
+CWE-307,Improper Restriction of Excessive Authentication Attempts,Improper Restriction of Excess..,356,0,0.0,0.0
+CWE-312,Cleartext Storage of Sensitive Information,Cleartext Storage of Sensitive..,503,0,0.0,0.0
+CWE-319,Cleartext Transmission of Sensitive Information,Cleartext Transmission of Sens..,435,0,0.0,0.0
+CWE-327,Use of a Broken or Risky Cryptographic Algorithm,Use of a Broken or Risky Crypt..,341,0,0.0,0.0
+CWE-404,Improper Resource Shutdown or Release,Improper Resource Shutdown or ..,391,0,0.0,0.0
+CWE-639,Authorization Bypass Through User-Controlled Key,Authorization Bypass Through U..,960,0,0.0,0.0
+CWE-427,Uncontrolled Search Path Element,Uncontrolled Search Path Element,734,0,0.0,0.0
+CWE-476,NULL Pointer Dereference,NULL Pointer Dereference,3212,0,0.0,0.0
+CWE-770,Allocation of Resources Without Limits or Throttling,Allocation of Resources Withou..,955,0,0.0,0.0
+CWE-601,URL Redirection to Untrusted Site ('Open Redirect'),Open Redirect,868,0,0.0,0.0
+CWE-613,Insufficient Session Expiration,Insufficient Session Expiration,309,0,0.0,0.0
+CWE-617,Reachable Assertion,Reachable Assertion,473,0,0.0,0.0
+CWE-98,Improper Control of Filename for Include/Require Statement in PHP Program ('PHP Remote File Inclusion'),PHP Remote File Inclusion,677,0,0.0,0.0
