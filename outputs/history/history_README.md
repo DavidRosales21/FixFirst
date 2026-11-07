@@ -1,4 +1,4 @@
-# FixFirst - historical exposure rates (strictly pre-2024)
+# FixNext - historical exposure rates (strictly pre-2024)
 
 Per-group KEV (exploitation) rates for use as **model features**, built so they cannot
 leak any 2024+ training or validation label.

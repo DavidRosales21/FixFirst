@@ -1,4 +1,4 @@
-"""FixFirst - src/discovery.py
+"""FixNext - src/discovery.py
 Reproduce the 5 discovery findings (FINDINGS_v1.md) as tables + Plotly charts.
 Reads ONLY data/{vulnerabilities,known_exploited,weakness_types}.csv (historical, 2021-2025).
 Window: CVEs published 2021-01-01 .. 2025-12-31 inclusive. Labels: CISA KEV <= 2025-12-31.
@@ -177,7 +177,7 @@ def main():
 
     # ---- headline numbers ----
     print("=" * 64)
-    print("FixFirst discovery - headline numbers")
+    print("FixNext discovery - headline numbers")
     print("=" * 64)
     print("CVEs in window (2021-2025) : %d" % n)
     print("base_rate                  : %.2f%%   (target 0.50%%)" % (base * 100))
@@ -192,7 +192,7 @@ def main():
     # ---- discovery_tables.md ----
     never = 100 - crit_rate
     md = []
-    md.append("# FixFirst - Discovery findings (reproduced by src/discovery.py)")
+    md.append("# FixNext - Discovery findings (reproduced by src/discovery.py)")
     md.append("")
     md.append("Window: CVEs published 2021-01-01..2025-12-31. Labels: CISA KEV <= 2025-12-31. "
               "Base rate %.2f%% (%d of %d)." % (base * 100, total_kev, n))

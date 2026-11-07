@@ -1,4 +1,4 @@
-"""FixFirst - src/history_rates.py
+"""FixNext - src/history_rates.py
 Strictly pre-2024 historical exposure rates, for use as model features without label leakage.
 Reads ONLY data/{vulnerabilities,known_exploited}.csv.
 Window: CVEs published 2019-01-01 .. 2023-12-31.
@@ -114,7 +114,7 @@ def main():
 
     # g. README
     L = []
-    L.append("# FixFirst - historical exposure rates (strictly pre-2024)")
+    L.append("# FixNext - historical exposure rates (strictly pre-2024)")
     L.append("")
     L.append("Per-group KEV (exploitation) rates for use as **model features**, built so they cannot")
     L.append("leak any 2024+ training or validation label.")
