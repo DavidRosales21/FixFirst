@@ -1,18 +1,15 @@
 """Train the FixNext model, back-test vs baselines, and rank the 2026 scoreboard.
 
-Runnable as `python -m src.train`. Reads outputs/features.parquet (from
-build_features.py) and the pre-2024 exposure-rate tables in outputs/history/.
-Writes:
-  outputs/backtest.md        -- valid hits@100/500 table (with/without history) + provenance
-  outputs/ranked_2026.csv    -- full 2026 ranking (David's dashboard contract)
-  outputs/top500.csv         -- first 500 cve_id (submission)
-  outputs/importances.csv    -- top 25 feature importances of the final model
-  outputs/model.pkl          -- the final model (gitignored)
+Runnable as `python -m src.train`. Reads outputs/features.parquet, the pre-2024
+exposure-rate tables in outputs/history/, and the IBM Granite description
+embeddings in data/granite_embeddings.npy (+ _ids.csv). Writes backtest.md,
+ranked_2026.csv, top500.csv, importances.csv, model.pkl.
 
-MSG-010 (DEV-ENGINE). TF-IDF+SVD text features stand in for Granite embeddings
-(MSG-008). History features are strictly pre-2024 constants (see
-outputs/history/history_README.md). Features never include pub_month/published,
-anything in config.FORBIDDEN_COLS, or cvss3_source.
+MSG-008 (DEV-ENGINE): IBM Granite embeddings (ibm-granite/granite-embedding-
+small-english-r2, 384-d, L2-normalised) reduced with PCA(32) -> gr0..gr31 as the
+text signal. TEXT_MODE in {tfidf, granite, both}. USE_HISTORY default False
+(MSG-010 decision: history gave no lift). Features never include
+pub_month/published, config.FORBIDDEN_COLS, or cvss3_source.
 """
 import pickle
 from functools import lru_cache
@@ -21,9 +18,14 @@ import numpy as np
 import pandas as pd
 import lightgbm as lgb
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.decomposition import TruncatedSVD
+from sklearn.decomposition import TruncatedSVD, PCA
 
 from .config import DATA, OUT
+
+# ---- shipping configuration -------------------------------------------------
+USE_HISTORY = False          # MSG-010: history features off by default (no lift)
+TEXT_MODE = "granite"        # {"tfidf", "granite", "both"}; default granite (IBM tech)
+# -----------------------------------------------------------------------------
 
 CVSS_CATS = [
     "attack_vector", "attack_complexity", "privileges_required",
@@ -33,17 +35,20 @@ CVSS_CATS = [
 FLAGS = ["exploitdb", "metasploit", "nuclei", "poc_github"]
 
 HIST_DIR = OUT / "history"
-BASE_RATE = 0.0062  # overall pre-2024 KEV rate (history_README.md)
+BASE_RATE = 0.0062
 HIST_COLS = [
     "hist_assigner_rate", "hist_assigner_n", "hist_cwe_rate",
     "hist_vendor_rate", "hist_severity_rate", "hist_av_rate",
 ]
+TXT_COLS = [f"txt{i}" for i in range(16)]
+GR_COLS = [f"gr{i}" for i in range(32)]
 
 LGBM_PARAMS = dict(
     n_estimators=300, learning_rate=0.03, num_leaves=8, min_child_samples=40,
     subsample=0.8, subsample_freq=1, colsample_bytree=0.5, reg_lambda=5,
     scale_pos_weight=20, random_state=0, verbose=-1,
 )
+LGBM_PARAMS_BIG = dict(LGBM_PARAMS, num_leaves=15, n_estimators=500, min_child_samples=25)
 
 RANKED_COLS = [
     "rank", "cve_id", "score", "published", "snapshot_month", "vendor_guess",
@@ -69,7 +74,6 @@ def cvss_severity(x):
 
 @lru_cache(maxsize=1)
 def load_history():
-    """Pre-2024 exposure-rate lookup tables (constants, not fit on train data)."""
     def rate_map(fname, key, val="rate"):
         t = pd.read_csv(HIST_DIR / fname, dtype={key: str})
         return dict(zip(t[key].astype(str), t[val]))
@@ -83,26 +87,38 @@ def load_history():
     }
 
 
-def build_X(df, fit_mask):
-    """Feature matrix for every row in df; fit-set encoders use fit_mask rows only.
+@lru_cache(maxsize=1)
+def load_embeddings():
+    emb = np.load(DATA / "granite_embeddings.npy")          # (N, 384) float16
+    ids = pd.read_csv(DATA / "granite_embeddings_ids.csv")["cve_id"].astype(str).tolist()
+    return emb, {c: i for i, c in enumerate(ids)}
 
-    History features (hist_*) are constants from pre-2024 tables, identical for
-    every split (no fitting), appended after the keyword flags.
-    """
+
+def granite_matrix(cve_ids):
+    emb, idx = load_embeddings()
+    missing = [c for c in cve_ids if c not in idx]
+    print(f"[granite] {len(cve_ids)} rows, {len(missing)} cve_ids missing from embeddings")
+    assert not missing, f"{len(missing)} cve_ids missing from embeddings (e.g. {missing[:3]})"
+    return emb[[idx[c] for c in cve_ids]].astype(np.float32)
+
+
+def build_superset(df, fit_mask):
+    """Build every feature (numeric, history, categorical, txt, gr) once; callers
+    slice the columns they want with select(). Encoders/PCA fit on fit_mask only."""
     fit = df[fit_mask]
     X = pd.DataFrame(index=df.index)
 
-    # numeric (epss + cvss3_score keep NaN; model handles it)
     X["epss"] = pd.to_numeric(df["epss"], errors="coerce")
     X["cvss3_score"] = pd.to_numeric(df["cvss3_score"], errors="coerce")
     X["desc_len"] = pd.to_numeric(df["desc_len"], errors="coerce").fillna(0)
     for c in FLAGS:
         X[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
     X["any_flag"] = X[FLAGS].max(axis=1)
-    for c in [c for c in df.columns if c.startswith("kw_")]:
+    kw_cols = [c for c in df.columns if c.startswith("kw_")]
+    for c in kw_cols:
         X[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
 
-    # history exposure rates (pre-2024 constants; "other"/missing -> base_rate)
+    # history (built always; included in a config only when use_history)
     H = load_history()
     X["hist_assigner_rate"] = df["assigner"].map(H["assigner_rate"]).fillna(BASE_RATE)
     X["hist_assigner_n"] = pd.to_numeric(df["assigner"].map(H["assigner_n"]), errors="coerce").fillna(0).astype(int)
@@ -113,11 +129,9 @@ def build_X(df, fit_mask):
     X["hist_severity_rate"] = sev.map(H["severity_rate"]).fillna(BASE_RATE)
     X["hist_av_rate"] = df["attack_vector"].map(H["av_rate"]).fillna(BASE_RATE)
 
-    # categorical (categories fixed from the fit set)
     cat_cols = []
     for c in CVSS_CATS + ["vendor_guess"]:
-        cats = sorted(fit[c].dropna().unique())
-        X[c] = pd.Categorical(df[c], categories=cats)
+        X[c] = pd.Categorical(df[c], categories=sorted(fit[c].dropna().unique()))
         cat_cols.append(c)
     for c, n in [("assigner", 150), ("cwe_primary", 60)]:
         top = fit[c].value_counts().head(n).index
@@ -125,7 +139,7 @@ def build_X(df, fit_mask):
         X[c] = pd.Categorical(vals, categories=sorted(set(top) | {"other"}))
         cat_cols.append(c)
 
-    # text: TF-IDF -> TruncatedSVD(16), fit on fit set, transform all
+    # txt: TF-IDF -> SVD(16), fit on fit set
     desc = df["description"].fillna("")
     tf = TfidfVectorizer(max_features=30000, ngram_range=(1, 2), min_df=5, sublinear_tf=True)
     tf.fit(desc[fit_mask])
@@ -135,15 +149,33 @@ def build_X(df, fit_mask):
     for i in range(16):
         X[f"txt{i}"] = Z[:, i]
 
-    return X, cat_cols
+    # gr: Granite 384-d -> PCA(32), fit on fit set
+    G = granite_matrix(df["cve_id"].tolist())
+    pca = PCA(n_components=32, random_state=0)
+    pca.fit(G[fit_mask])
+    Zg = pca.transform(G)
+    for i in range(32):
+        X[f"gr{i}"] = Zg[:, i]
+
+    return X, cat_cols, kw_cols
 
 
-def no_hist(X):
-    return X.drop(columns=[c for c in HIST_COLS if c in X.columns])
+def select(X, kw_cols, text_mode, use_history, drop_kw=()):
+    base_num = ["epss", "cvss3_score", "desc_len"] + FLAGS + ["any_flag"] + \
+               [c for c in kw_cols if c not in drop_kw]
+    cols = list(base_num)
+    if use_history:
+        cols += HIST_COLS
+    cols += CVSS_CATS + ["vendor_guess", "assigner", "cwe_primary"]
+    if text_mode in ("tfidf", "both"):
+        cols += TXT_COLS
+    if text_mode in ("granite", "both"):
+        cols += GR_COLS
+    return X[cols]
 
 
-def fit_model(X, y, cat_cols):
-    m = lgb.LGBMClassifier(**LGBM_PARAMS)
+def fit_model(X, y, cat_cols, params=LGBM_PARAMS):
+    m = lgb.LGBMClassifier(**params)
     m.fit(X, y, categorical_feature=[c for c in cat_cols if c in X.columns])
     return m
 
@@ -177,106 +209,93 @@ def top_reasons(row):
     return "; ".join(out[:4])
 
 
-PROVENANCE = """## Column provenance (feature -> raw source)
-
-History tables are strictly pre-2024: CVEs published 2019-01-01..2023-12-31, KEV label date_added <= 2023-12-31, base_rate 0.0062.
-
-| feature | raw source |
-|---|---|
-| epss | scoreboard_2026.epss (2026) / exploit_signals_20XX.epss at publish month (2024-25) |
-| exploitdb, metasploit, nuclei, poc_github | same snapshot-month exploit flags |
-| any_flag | max of the 4 flags |
-| cvss3_score | vulnerabilities.cvss3_score |
-| attack_vector, attack_complexity, privileges_required, user_interaction, scope, confidentiality_impact, integrity_impact, availability_impact | vulnerabilities.<same column> |
-| assigner | vulnerabilities.assigner (top 150 in fit set, else 'other') |
-| cwe_primary | first id of vulnerabilities.cwe_ids (top 60 in fit set, else 'other') |
-| vendor_guess | first vendor keyword found in vulnerabilities.description |
-| desc_len | length of vulnerabilities.description |
-| kw_* | lowercase substring flags on vulnerabilities.description (ios/sap word-boundary) |
-| txt0..txt15 | TruncatedSVD(16) of TF-IDF(1-2 gram) of vulnerabilities.description |
-| hist_assigner_rate / hist_assigner_n | outputs/history/assigner_rates.csv (rate / cves), keyed by assigner |
-| hist_cwe_rate | outputs/history/cwe_rates.csv.rate, keyed by cwe_primary |
-| hist_vendor_rate | outputs/history/vendor_kw_rates.csv.rate, keyed by vendor_guess ('other'->base_rate) |
-| hist_severity_rate | outputs/history/severity_rates.csv.rate, keyed by severity derived from cvss3_score |
-| hist_av_rate | outputs/history/attack_vector_rates.csv.rate, keyed by attack_vector |
-| y (label, training only) | known_exploited.date_added > publish month-end |
-| split | derived from pub_month |
-
-Not used as features: pub_month/published, nvd_status, n_references, n_affected_cpes, last_modified, cvss3_source, references.csv, affected_products.csv.
-"""
-
-
 def main():
     df = pd.read_parquet(OUT / "features.parquet")
     df["y"] = pd.to_numeric(df["y"], errors="coerce").astype(int)
 
-    # ---------- validation back-test: fit on train (2024), score valid (2025 H1) ----------
-    ev_df = df[df["split"].isin(["train", "valid"])].copy().reset_index(drop=True)
-    Xev, cat_cols = build_X(ev_df, (ev_df["split"] == "train").values)
-    tr = (ev_df["split"] == "train").values
-    va = (ev_df["split"] == "valid").values
-    ytr = ev_df["y"].values[tr]
+    # ---------- validation back-test ----------
+    ev = df[df["split"].isin(["train", "valid"])].copy().reset_index(drop=True)
+    Xs, cat_cols, kw_cols = build_superset(ev, (ev["split"] == "train").values)
+    tr = (ev["split"] == "train").values
+    va = (ev["split"] == "valid").values
+    ytr = ev["y"].values[tr]
+    drop_kw = [c for c in ["kw_exploited", "kw_in_the_wild"] if c in kw_cols]
 
-    # model without history (reproduces the MSG-006 rows) and with history
-    m_nohist = fit_model(no_hist(Xev)[tr], ytr, cat_cols)
-    p_nohist = m_nohist.predict_proba(no_hist(Xev)[va])[:, 1]
-    m_hist = fit_model(Xev[tr], ytr, cat_cols)
-    p_hist = m_hist.predict_proba(Xev[va])[:, 1]
-    # ablation: no-history, minus the two possibly-after-the-fact phrase flags
-    drop_kw = [c for c in ["kw_exploited", "kw_in_the_wild"] if c in Xev.columns]
-    m_abl = fit_model(no_hist(Xev)[tr].drop(columns=drop_kw), ytr, cat_cols)
-    p_abl = m_abl.predict_proba(no_hist(Xev)[va].drop(columns=drop_kw))[:, 1]
+    def proba(text_mode, use_history=False, drop=(), params=LGBM_PARAMS):
+        Xc = select(Xs, kw_cols, text_mode, use_history, drop)
+        m = fit_model(Xc[tr], ytr, cat_cols, params)
+        return m.predict_proba(Xc[va])[:, 1]
 
-    Xva = Xev[va]
+    Xva = Xs[va]
     fte = flags_then_epss(Xva).values
-    ev = pd.DataFrame({
-        "y": ev_df["y"].values[va],
-        "cvss_first": Xva["cvss3_score"].values,
-        "epss_first": Xva["epss"].values,
-        "flags_then_epss": fte,
-        "model": p_nohist,
-        "model_ablation": p_abl,
-        "model_history": p_hist,
-    })
-    ev["blend"] = ev["model"].rank(pct=True) + ev["flags_then_epss"].rank(pct=True)
-    ev["blend_history"] = ev["model_history"].rank(pct=True) + ev["flags_then_epss"].rank(pct=True)
-    pos_valid = int(ev["y"].sum())
+    f = pd.DataFrame({"y": ev["y"].values[va]})
+    f["cvss_first"] = Xva["cvss3_score"].values
+    f["epss_first"] = Xva["epss"].values
+    f["flags_then_epss"] = fte
+    f["model"] = proba("tfidf")
+    f["model_ablation"] = proba("tfidf", drop=drop_kw)
+    f["model_history"] = proba("tfidf", use_history=True)
+    f["model_granite"] = proba("granite")
+    f["model_both"] = proba("both")
+    p_gbig = proba("granite", params=LGBM_PARAMS_BIG)
+    rp = lambda s: pd.Series(s).rank(pct=True).values
+    rfte = rp(fte)
+    for name, col in [("blend", "model"), ("blend_history", "model_history"),
+                      ("blend_granite", "model_granite"), ("blend_both", "model_both")]:
+        f[name] = rp(f[col].values) + rfte
+    f["blend_granite_big"] = rp(p_gbig) + rfte
+    pos_valid = int(f["y"].sum())
 
-    rankings = ["cvss_first", "epss_first", "flags_then_epss", "model", "blend",
-                "model_ablation", "model_history", "blend_history"]
-    table = {r: {k: hits_at_k(ev, r, k) for k in (100, 500)} for r in rankings}
+    rows = ["cvss_first", "epss_first", "flags_then_epss", "model", "blend",
+            "model_ablation", "model_history", "blend_history",
+            "model_granite", "blend_granite", "model_both", "blend_both",
+            "blend_granite_big"]
+    h = {r: {k: hits_at_k(f, r, k) for k in (50, 100, 500)} for r in rows}
 
-    # choose among the 4 candidates by valid hits@500; ties -> +history/blend variant
-    priority = {"blend_history": 3, "model_history": 2, "blend": 1, "model": 0}
-    candidates = ["model", "blend", "model_history", "blend_history"]
-    choice = max(candidates, key=lambda c: (table[c][500], priority[c]))
-    has_history = "history" in choice
-    is_blend = "blend" in choice
-    pretty = {"model": "model", "blend": "blend",
-              "model_history": "model + history", "blend_history": "blend + history"}
+    # rule pick among blend variants
+    col = {"tfidf": "blend", "granite": "blend_granite", "both": "blend_both", "granite_big": "blend_granite_big"}
+    H = lambda key, k: h[col[key]][k]
+    base_keys = ["tfidf", "granite", "both"]
+    best500 = max(H(k, 500) for k in base_keys)
+    best100 = max(H(k, 100) for k in base_keys)
+    keys = list(base_keys)
+    if H("granite_big", 500) > best500 and H("granite_big", 100) > best100:
+        keys.append("granite_big")
+    pref = {"granite": 3, "granite_big": 2, "both": 1, "tfidf": 0}
+    choice = max(keys, key=lambda k: (H(k, 500), H(k, 100), pref[k]))
+    # required-IBM-tech preference: ship granite if it is not worse at @500 AND @100
+    if not choice.startswith("granite") and H("granite", 500) >= H(choice, 500) and H("granite", 100) >= H(choice, 100):
+        choice = "granite"
+    if choice.startswith("granite") and H(choice, 500) > max(H("tfidf", 500), H("both", 500)):
+        case = f"Granite is strictly best at hits@500 ({H(choice,500)}); shipped on merit."
+    elif choice.startswith("granite") and H("granite", 500) >= H("tfidf", 500) and H("granite", 100) >= H("tfidf", 100):
+        case = ("Granite is not worse than TF-IDF at @500 and @100; shipped as the required IBM technology "
+                "(more defensible than TF-IDF on 67 positives).")
+    elif choice.startswith("granite"):
+        case = "Granite shipped by rule tiebreak."
+    else:
+        case = f"Granite is worse at @500/@100; shipped {choice} instead."
 
-    # ---------- final model: refit on all labelled rows (train+valid+late), score 2026 ----------
+    text_mode = "granite" if choice in ("granite", "granite_big") else choice
+    params = LGBM_PARAMS_BIG if choice == "granite_big" else LGBM_PARAMS
+
+    # ---------- final model: refit on train+valid+late, score 2026 ----------
     fit_mask = df["split"].isin(["train", "valid", "late"]).values
-    Xall, cat_cols2 = build_X(df, fit_mask)
-    Xf = Xall if has_history else no_hist(Xall)
-    final = fit_model(Xf[fit_mask], df["y"].values[fit_mask], cat_cols2)
+    Xs2, cat2, kw2 = build_superset(df, fit_mask)
+    Xf = select(Xs2, kw2, text_mode, USE_HISTORY)
+    final = fit_model(Xf[fit_mask], df["y"].values[fit_mask], cat2, params)
 
     sc = (df["split"] == "score").values
-    Xsc = Xf[sc]
-    p_sc = final.predict_proba(Xsc)[:, 1]
-    fte_sc = flags_then_epss(Xall[sc]).values
-    if is_blend:
-        raw = (pd.Series(p_sc).rank(pct=True) + pd.Series(fte_sc).rank(pct=True)).values
-    else:
-        raw = p_sc
+    p_sc = final.predict_proba(Xf[sc])[:, 1]
+    fte_sc = flags_then_epss(Xs2[sc]).values
+    raw = pd.Series(p_sc).rank(pct=True).values + pd.Series(fte_sc).rank(pct=True).values  # blend
     span = raw.max() - raw.min()
     score01 = (raw - raw.min()) / span if span > 0 else np.zeros_like(raw)
 
     out = df[sc].copy().reset_index(drop=True)
     out["score"] = score01
     wk = pd.read_csv(DATA / "weakness_types.csv", usecols=["cwe_id", "name"], dtype=str)
-    name_map = dict(zip(wk["cwe_id"], wk["name"]))
-    out["cwe_name"] = out["cwe_primary"].map(name_map).fillna("Unknown")
+    out["cwe_name"] = out["cwe_primary"].map(dict(zip(wk["cwe_id"], wk["name"]))).fillna("Unknown")
     out["cvss3_severity"] = pd.to_numeric(out["cvss3_score"], errors="coerce").map(cvss_severity)
     out["top_reasons"] = out.apply(top_reasons, axis=1)
     out["rationale"] = ""
@@ -292,42 +311,70 @@ def main():
     imp = (pd.DataFrame({"feature": Xf.columns, "importance": final.feature_importances_})
            .sort_values("importance", ascending=False).reset_index(drop=True))
     imp.head(25).to_csv(OUT / "importances.csv", index=False)
-
-    with open(OUT / "model.pkl", "wb") as f:
-        pickle.dump(final, f)
+    with open(OUT / "model.pkl", "wb") as fh:
+        pickle.dump(final, fh)
 
     # ---------- backtest.md ----------
     label = {
         "cvss_first": "CVSS first", "epss_first": "EPSS first",
-        "flags_then_epss": "Flags then EPSS", "model": "FixNext model (LightGBM)",
-        "blend": "Blend (model + flags/EPSS)",
+        "flags_then_epss": "Flags then EPSS",
+        "model": "FixNext model (TF-IDF)", "blend": "Blend (TF-IDF)",
         "model_ablation": "model ablation (no kw_exploited / kw_in_the_wild)",
         "model_history": "FixNext model + history", "blend_history": "Blend + history",
+        "model_granite": "FixNext model (Granite)", "blend_granite": "Blend (Granite)",
+        "model_both": "FixNext model (TF-IDF + Granite)", "blend_both": "Blend (TF-IDF + Granite)",
+        "blend_granite_big": "Blend (Granite, bigger model)",
     }
     lines = [
         f"# FixNext back-test -- valid split (2025-01..2025-06), positives available: {pos_valid}",
         "",
-        "| ranking | hits@100 | hits@500 |",
-        "|---|---:|---:|",
+        "| ranking | hits@50 | hits@100 | hits@500 |",
+        "|---|---:|---:|---:|",
     ]
-    for r in rankings:
-        lines.append(f"| {label[r]} | {table[r][100]} | {table[r][500]} |")
+    for r in rows:
+        lines.append(f"| {label[r]} | {h[r][50]} | {h[r][100]} | {h[r][500]} |")
     lines += [
         "",
         "HQ reference (valid, hits@500): CVSS 5 | EPSS 11 | Flags-then-EPSS 17 | quick LightGBM 14-16.",
         "",
-        f"**Chosen 2026 ranking rule: {pretty[choice]}** "
-        f"(valid hits@500 = {table[choice][500]}; candidates model={table['model'][500]}, "
-        f"blend={table['blend'][500]}, model+history={table['model_history'][500]}, "
-        f"blend+history={table['blend_history'][500]}; ties -> blend+history).",
+        f"**Chosen 2026 ranking rule: blend ({text_mode}"
+        + (", bigger model" if choice == "granite_big" else "") + ")**. "
+        + f"Candidates (blend) hits@500/@100: tfidf={H('tfidf',500)}/{H('tfidf',100)}, "
+        + f"granite={H('granite',500)}/{H('granite',100)}, both={H('both',500)}/{H('both',100)}, "
+        + f"granite_big={H('granite_big',500)}/{H('granite_big',100)}. {case}",
         "",
-        PROVENANCE,
+        "## Column provenance (feature -> raw source)",
+        "",
+        "Granite: ibm-granite/granite-embedding-small-english-r2, 384-d L2-normalised embeddings of "
+        "vulnerabilities.description -> PCA(32) fit on the fit set (train for the back-test; "
+        "train+valid+late for the final) -> gr0..gr31.",
+        "TF-IDF: TruncatedSVD(16) of TF-IDF(1-2 gram) of vulnerabilities.description -> txt0..txt15.",
+        "History (USE_HISTORY=False by default; ablation rows only): pre-2024 KEV rates, "
+        "window 2019-01-01..2023-12-31, label date_added <= 2023-12-31, base_rate 0.0062.",
+        "",
+        "| feature | raw source |",
+        "|---|---|",
+        "| epss | scoreboard_2026.epss (2026) / exploit_signals.epss at publish month (2024-25) |",
+        "| exploitdb, metasploit, nuclei, poc_github, any_flag | snapshot-month exploit flags (any_flag = max) |",
+        "| cvss3_score | vulnerabilities.cvss3_score |",
+        "| attack_vector, attack_complexity, privileges_required, user_interaction, scope, confidentiality_impact, integrity_impact, availability_impact | vulnerabilities.<same column> |",
+        "| assigner (top 150), cwe_primary (first id of cwe_ids, top 60), vendor_guess (first vendor kw in description) | vulnerabilities.assigner / cwe_ids / description |",
+        "| desc_len, kw_* | length / lowercase substring flags on vulnerabilities.description |",
+        "| gr0..gr31 | PCA(32) of Granite 384-d embeddings of vulnerabilities.description |",
+        "| txt0..txt15 | TruncatedSVD(16) of TF-IDF of vulnerabilities.description |",
+        "| hist_* (ablation only) | outputs/history/*.csv pre-2024 KEV rates keyed by assigner/cwe/vendor/severity/attack_vector |",
+        "| y (label, training only) | known_exploited.date_added > publish month-end |",
+        "",
+        "Not used as features: pub_month/published, nvd_status, n_references, n_affected_cpes, last_modified, cvss3_source, references.csv, affected_products.csv.",
+        "",
     ]
     md = "\n".join(lines)
     (OUT / "backtest.md").write_text(md)
 
     print(md)
-    print(f"\nranked_2026.csv rows: {len(ranked)}   top500.csv rows: 500   history in final model: {has_history}")
+    print(f"\nshipped: blend / text_mode={text_mode} / params={'big' if choice=='granite_big' else 'default'} "
+          f"/ USE_HISTORY={USE_HISTORY}")
+    print(f"ranked_2026.csv rows: {len(ranked)}   top500.csv rows: 500")
     print("\nTop 15 feature importances:")
     print(imp.head(15).to_string(index=False))
     print("\nTop 10 ranked_2026 rows:")
