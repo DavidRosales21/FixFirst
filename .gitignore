@@ -1,5 +1,5 @@
 # Data (too large for GitHub; share it outside the repo)
-data/
+data/*
 *.zip
 
 # Python
