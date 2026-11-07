@@ -228,7 +228,7 @@ def main():
 
     # ---- charts ----
     # 1 - assigner lift
-    a12 = assigner_tbl.head(12).iloc[::-1]
+    a12 = assigner_tbl.head(12).sort_values("kev_rate_pct")  # top 12 by KEV count, ordered by rate (highest at top)
     fig = go.Figure(go.Bar(y=a12["assigner_label"], x=a12["kev_rate_pct"], orientation="h",
                            marker_color=ACCENT,
                            text=["%.1f%%" % r for r in a12["kev_rate_pct"]],
