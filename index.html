@@ -109,6 +109,9 @@
           {
             requirements: ["plotly"],
             entrypoint: "app.py",
+            // The FixNext loading screen shows progress; stlite's own toasts would linger over the app.
+            disableProgressToasts: true,
+            disableModuleAutoLoadToasts: true,
             files: {
               "app.py": { url: "app/app.py" },
               "sample_ranked_2026.csv": { url: "app/sample_ranked_2026.csv" },
