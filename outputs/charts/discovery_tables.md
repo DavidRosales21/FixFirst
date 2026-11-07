@@ -1,4 +1,4 @@
-# FixFirst - Discovery findings (reproduced by src/discovery.py)
+# FixNext - Discovery findings (reproduced by src/discovery.py)
 
 Window: CVEs published 2021-01-01..2025-12-31. Labels: CISA KEV <= 2025-12-31. Base rate 0.50% (813 of 162141).
 

@@ -1,4 +1,4 @@
-"""FixFirst — shared config. Paths + the leakage rules, in code, so nobody forgets."""
+"""FixNext — shared config. Paths + the leakage rules, in code, so nobody forgets."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
