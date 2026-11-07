@@ -1,0 +1,14 @@
+# gh-pages — fixnext.select
+
+This branch is the published site, served by GitHub Pages at https://fixnext.select.
+It only holds the deploy files; the code lives on the other branches.
+
+- `index.html` runs the Streamlit dashboard in the visitor's browser with
+  [stlite](https://github.com/whitphx/stlite) (`@stlite/browser@1.12.0`, Streamlit 1.65),
+  and shows a loading screen while Python starts (about 20–30 s).
+- `app/` is a copy of `app/` from the `app-ui` branch (commit 97db014), unchanged.
+  It currently uses the sample data (`sample_ranked_2026.csv`, `sample_backtest.csv`).
+- `CNAME` sets the custom domain; `.nojekyll` makes Pages serve `app/.streamlit/config.toml`.
+
+To publish a newer version of the app, copy the updated `app/` folder over this one
+and push to `gh-pages`. Pages redeploys on its own in a minute or two.

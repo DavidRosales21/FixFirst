@@ -1,0 +1,75 @@
+# FixNext dashboard theme (fixnext.select).
+# Streamlit reads this file because it sits next to app/app.py.
+# Viewers switch themes from the ⋮ menu (top right): System, Light or Dark.
+# Colors follow IBM's Carbon palette; fonts are IBM Plex, served from app/static/.
+
+[server]
+enableStaticServing = true
+
+[browser]
+# No usage statistics sent to Streamlit: the app makes no network calls of its own.
+gatherUsageStats = false
+
+[theme]
+font = "IBM Plex Sans, Helvetica Neue, Arial, sans-serif"
+headingFont = "IBM Plex Sans, Helvetica Neue, Arial, sans-serif"
+codeFont = "IBM Plex Mono, Menlo, Consolas, monospace"
+headingFontWeights = [300, 400, 600]
+baseRadius = "none"
+buttonRadius = "none"
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/ibm-plex-sans-latin-300-normal.woff2"
+weight = "300"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/ibm-plex-sans-latin-400-normal.woff2"
+weight = "400"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/ibm-plex-sans-latin-600-normal.woff2"
+weight = "600"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/ibm-plex-mono-latin-400-normal.woff2"
+weight = "400"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/ibm-plex-mono-latin-500-normal.woff2"
+weight = "500"
+style = "normal"
+
+[theme.light]
+primaryColor = "#0F62FE"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F4F4"
+textColor = "#161616"
+linkColor = "#0F62FE"
+borderColor = "#E0E0E0"
+dataframeHeaderBackgroundColor = "#E0E0E0"
+
+[theme.light.sidebar]
+backgroundColor = "#F4F4F4"
+secondaryBackgroundColor = "#FFFFFF"
+
+[theme.dark]
+primaryColor = "#0F62FE"
+backgroundColor = "#161616"
+secondaryBackgroundColor = "#262626"
+textColor = "#F4F4F4"
+linkColor = "#78A9FF"
+borderColor = "#393939"
+dataframeHeaderBackgroundColor = "#393939"
+
+[theme.dark.sidebar]
+backgroundColor = "#262626"
+secondaryBackgroundColor = "#393939"
