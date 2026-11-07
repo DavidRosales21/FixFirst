@@ -1,0 +1,16 @@
+assigner,metric,lag_days
+ALL_KEV,q0,-290.0
+ALL_KEV,q10,0.0
+ALL_KEV,q25,1.0
+ALL_KEV,q50,28.0
+ALL_KEV,q75,176.0
+ALL_KEV,q90,359.0
+ALL_KEV,q100,1691.0
+microsoft,median_lag,6.0
+mitre,median_lag,105.0
+apple,median_lag,2.0
+google,median_lag,4.0
+cisco,median_lag,9.5
+github,median_lag,132.5
+vmware,median_lag,52.5
+apache,median_lag,113.0
