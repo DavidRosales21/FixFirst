@@ -46,9 +46,20 @@ VENDOR_KEYWORDS = [
 CHUNK = 1_000_000
 SIG_READ_COLS = ["cve_id", "epss", "in_kev", "exploitdb", "metasploit", "nuclei", "poc_github"]
 
+# Short tokens that need word boundaries so "ios" doesn't match "scenarios" and
+# "sap" doesn't match inside other words (MSG-006 fix).
+WORD_BOUNDARY = {"ios", "sap"}
+
 
 def _kw_col(kw):
     return "kw_" + kw.replace(" ", "_").replace("-", "_")
+
+
+def _contains(desc_lower, kw):
+    """Substring match, except WORD_BOUNDARY tokens match on \\b word boundaries."""
+    if kw in WORD_BOUNDARY:
+        return desc_lower.str.contains(r"\b" + kw + r"\b", regex=True)
+    return desc_lower.str.contains(kw, regex=False)
 
 
 def load_vulnerabilities():
@@ -124,11 +135,11 @@ def add_derived(df):
     df["cwe_primary"] = df["cwe_ids"].fillna("").str.split(";").str[0].replace("", "NONE")
 
     for kw in KEYWORDS:
-        df[_kw_col(kw)] = desc_lower.str.contains(kw, regex=False).astype(int)
+        df[_kw_col(kw)] = _contains(desc_lower, kw).astype(int)
 
     vendor = pd.Series("other", index=df.index)
     for kw in reversed(VENDOR_KEYWORDS):  # reversed so earliest-in-list wins
-        vendor = vendor.mask(desc_lower.str.contains(kw, regex=False), kw)
+        vendor = vendor.mask(_contains(desc_lower, kw), kw)
     df["vendor_guess"] = vendor
     return df
 
