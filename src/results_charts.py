@@ -41,7 +41,7 @@ def parse_backtest(path):
             break
     chosen = None
     for ln in lines:
-        m = re.search(r"[Cc]hosen.*ranking rule:\s*([^*()\n]+)", ln)
+        m = re.search(r"ranking rule:\s*([^\n]+?)\.?\*\*", ln)  # 'Chosen...' or 'FROZEN...'; keeps ()
         if m:
             chosen = m.group(1).strip().lower()
             break
