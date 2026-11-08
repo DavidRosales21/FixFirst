@@ -13,7 +13,7 @@ Team: Hossam, David, Antesh, Calvin.
 data/        IBM track CSVs + Granite outputs (not committed — see data/README.md)
 src/         pipeline: config.py (paths + leakage rules) · build_features.py · train.py
 scripts/     check_top500.py — validates the submission file
-notebooks/   Colab notebooks: granite_embed.ipynb, granite_explain.ipynb
+notebooks/   granite_embed_and_explain.ipynb — Colab, IBM Granite
 outputs/     top500.csv · ranked_2026.csv · backtest.md · MODEL_CARD.md · similar_exploited.csv · rationales.csv · rationales_2.csv · charts/ · history/
 app/         Streamlit dashboard
 tests/       pytest
@@ -91,7 +91,7 @@ All figures below live in [outputs/charts/](outputs/charts/).
 ## IBM technology (Granite)
 - ibm-granite/granite-embedding-small-english-r2 embeds every CVE description (180,308 vectors, Colab GPU). For each CVE we compute its cosine similarity to CVEs already on CISA KEV at that time — this "resembles a known-exploited CVE" signal is the model's #4 feature (gr_knn_max). Used as PCA features instead, Granite did not beat TF-IDF on 39 validation positives; both results are in outputs/backtest.md.
 - ibm-granite/granite-3.3-2b-instruct writes the two-line "why fix this next" rationale for every CVE in the top 100 (outputs/rationales*.csv), shown in the dashboard.
-- Notebooks: notebooks/granite_embed.ipynb, notebooks/granite_explain.ipynb.
+- Notebook: notebooks/granite_embed_and_explain.ipynb (embeddings + rationales, with outputs).
 
 ## Credits
 NIST National Vulnerability Database (fkie-cad/nvd-json-data-feeds mirror, 2026-11-06) · CISA Known Exploited Vulnerabilities catalog (to 2025-12-31) · EPSS (FIRST) · public exploit flags from t0sche/cvss-bt (Exploit-DB, Metasploit, Nuclei, GitHub) · MITRE CWE v4.14 · IBM Granite (Hugging Face).
