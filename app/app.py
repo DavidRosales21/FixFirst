@@ -2,15 +2,17 @@
 #
 # Run from the repo root:   streamlit run app/app.py
 #
-# Reads only the two CSVs of the data contract (app/sample_ranked_2026.csv and
-# app/sample_backtest.csv). Point it at the real model output with the
-# FIXNEXT_RANKED / FIXNEXT_BACKTEST environment variables (the older FIXFIRST_* names
-# from the task doc still work); no code changes.
+# Reads only the two CSVs of the data contract. Which ones, first match wins:
+#   1. the FIXNEXT_RANKED / FIXNEXT_BACKTEST environment variables (the older FIXFIRST_*
+#      names from the task doc still work), e.g. the full ranking for the local demo;
+#   2. app/ranked_light.csv and app/backtest.csv, the model's drop-in files, when present;
+#   3. app/sample_ranked_2026.csv and app/sample_backtest.csv (placeholder scores).
 # Theme (light / dark / system) and fonts live in app/.streamlit/config.toml and app/static/.
 
 import html
 import os
 import random
+import re
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -19,11 +21,19 @@ import streamlit as st
 st.set_page_config(page_title="FixNext — Before the Breach", page_icon="🛡️", layout="wide")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = HERE  # the sample CSVs sit next to this file
+DATA_DIR = HERE  # the CSVs sit next to this file
+
+
+def first_existing(*names):
+    """The first of these files in DATA_DIR that exists (the last one if none do)."""
+    paths = [os.path.join(DATA_DIR, n) for n in names]
+    return next((p for p in paths if os.path.exists(p)), paths[-1])
+
+
 RANKED_PATH = (os.environ.get("FIXNEXT_RANKED") or os.environ.get("FIXFIRST_RANKED")
-               or os.path.join(DATA_DIR, "sample_ranked_2026.csv"))
+               or first_existing("ranked_light.csv", "sample_ranked_2026.csv"))
 BACKTEST_PATH = (os.environ.get("FIXNEXT_BACKTEST") or os.environ.get("FIXFIRST_BACKTEST")
-                 or os.path.join(DATA_DIR, "sample_backtest.csv"))
+                 or first_existing("backtest.csv", "sample_backtest.csv"))
 USING_SAMPLE = os.path.basename(RANKED_PATH).startswith("sample_")
 
 PAGES = ["Overview", "Fix-Next List", "CVE Detail", "Methodology"]
@@ -60,6 +70,8 @@ def load_ranked(path):
     df = pd.read_csv(path, dtype={"cve_id": str, "rationale": str, "top_reasons": str, "description": str})
     for col in ["rationale", "top_reasons", "description", "assigner"]:
         df[col] = df[col].fillna("")
+    # Optional column (Granite neighbours): "CVE-2024-1234 (0.93); CVE-2025-…". Missing = empty.
+    df["similar_cves"] = df["similar_cves"].fillna("").astype(str) if "similar_cves" in df else ""
     df["vendor_guess"] = df["vendor_guess"].fillna("other")
     df["cwe_name"] = df["cwe_name"].fillna("Unknown")
     for col in ["rank", "score", "cvss3_score", "epss"]:
@@ -123,6 +135,18 @@ def reason_kind(text):
 
 def reasons(row):
     return [r.strip() for r in str(row["top_reasons"]).split(";") if r.strip()]
+
+
+def similar_cves(row):
+    """[(cve_id, similarity)] from 'CVE-2024-1234 (0.93); CVE-2025-…'. Empty or missing -> []."""
+    out = []
+    for part in str(row.get("similar_cves", "") or "").split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        m = re.match(r"(CVE-\d{4}-\d+)\s*(?:\(\s*([^)]*?)\s*\))?", part, re.I)
+        out.append((m.group(1).upper(), m.group(2) or "") if m else (part, ""))
+    return out
 
 
 def main_reason(row):
@@ -241,6 +265,9 @@ CSS = """
 .ff-pill.epss{background:rgba(165,110,255,.18);color:color-mix(in srgb,#A56EFF 72%,currentColor)}
 .ff-pill.exploit{background:rgba(238,83,150,.18);color:color-mix(in srgb,#EE5396 72%,currentColor)}
 .ff-pill.vendor{background:rgba(0,157,154,.18);color:color-mix(in srgb,#009D9A 75%,currentColor)}
+.ff-similar{margin:12px 0 0;font-size:13px;line-height:2}
+.ff-sim{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 8px;margin-right:6px;background:var(--ff-line);white-space:nowrap}
+.ff-sim i{font-style:normal;color:var(--ff-muted);margin-left:2px}
 .ff-signals{display:flex;flex-wrap:wrap;gap:6px 8px;margin-top:14px;font-size:13px;color:var(--ff-muted);align-items:center}
 .ff-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;font-size:12px;color:inherit;background:var(--ff-layer);white-space:nowrap}
 .ff-tag i{display:inline-block;width:8px;height:8px;flex:0 0 auto}
@@ -585,8 +612,9 @@ def hero(total):
     )
 
 
-def cve_card(row, eyebrow, with_signals=True):
-    """The gauge card: rank, CVE id, score ring, reasons and (optionally) the signals line."""
+def cve_card(row, eyebrow, with_signals=True, with_similar=False):
+    """The gauge card: rank, CVE id, score ring, reasons and (optionally) the signals line
+    and the "looks like these exploited CVEs" line (hidden when there are none)."""
     score = 0.0 if is_blank(row["score"]) else float(row["score"])
     meta = " · ".join(x for x in [cwe_label(row["cwe_name"], row["cwe_primary"]), row["assigner"]] if x)
     pills = "".join(f'<span class="ff-pill {reason_kind(r)}">{esc(r)}</span>' for r in reasons(row))
@@ -596,6 +624,12 @@ def cve_card(row, eyebrow, with_signals=True):
         for col, label in FLAGS.items()
     )
     signals = f'<div class="ff-signals">{severity_html(row)}{flags}</div>' if with_signals else ""
+    sims = similar_cves(row) if with_similar else []
+    similar = (
+        '<p class="ff-similar"><span class="ff-muted">Looks like these exploited CVEs:</span> '
+        + "".join(f'<span class="ff-sim">{esc(c)}{f" <i>{esc(s)}</i>" if s else ""}</span>' for c, s in sims)
+        + "</p>"
+    ) if sims else ""
     st.html(
         '<section class="ff-card">'
         '<div class="ff-gauge-wrap"><span class="ff-ring" aria-hidden="true"></span>'
@@ -604,7 +638,7 @@ def cve_card(row, eyebrow, with_signals=True):
         f'<div class="ff-gauge-num" aria-hidden="true"><b>{score:.2f}</b><span>model score</span></div></div>'
         f'<div class="ff-card-body"><p class="ff-eyebrow">{esc(eyebrow)}</p>'
         f'<p class="ff-cve">{esc(row["cve_id"])}</p><p class="ff-card-meta">{esc(meta)}</p>'
-        f'<div class="ff-pills">{pills}</div>{signals}</div></section>'
+        f'<div class="ff-pills">{pills}</div>{similar}{signals}</div></section>'
     )
 
 
@@ -880,7 +914,7 @@ elif page == "CVE Detail":
     cve = st.selectbox("CVE", options, key="detail_cve", help="Type to search. Ordered by rank.")
     row = ranked.loc[ranked["cve_id"] == cve].iloc[0]
 
-    cve_card(row, f"RANK #{int(row['rank'])} · SCORE {fmt(row['score'])}", with_signals=False)
+    cve_card(row, f"RANK #{int(row['rank'])} · SCORE {fmt(row['score'])}", with_signals=False, with_similar=True)
 
     rationale = str(row["rationale"]).strip()
     body = esc(rationale) if rationale else '<span class="ff-pending">Granite rationale pending for this CVE</span>'
