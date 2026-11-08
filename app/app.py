@@ -1684,7 +1684,30 @@ def how_model_sees(row):
 
 # ---------------------------------------------------------------- Ask FixNext (Gemini)
 
-GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite"]
+# Stable Flash first (fast, least congested), then the newest Flash, then Flash-Lite. Quota is per model,
+# so a 429 on one still leaves the next one. Names from aistudio.google.com/docs/models (Nov 2026):
+# gemini-3.8-flash-lite does not exist (404) and the 2.x Flash models are retired.
+GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"]
+SKIP_TO_NEXT_MODEL = (404, 429, 500, 503, 504)   # unknown model / quota / overloaded: the other config won't help
+
+
+def thinking_minimal(types):
+    """Gemini 3.x thinks before answering, which is slow and eats the output budget; MINIMAL keeps it short.
+    (thinking_budget=0 was the 2.x knob.)"""
+    return types.ThinkingConfig(thinking_level=types.ThinkingLevel.MINIMAL)
+
+
+def with_asked_cves(question, context):
+    """Add the details of any CVE the question names, so "Why is CVE-X ranked #3?" gets a real answer on
+    every page, not only on CVE Detail with that CVE selected."""
+    extra = []
+    for cid in dict.fromkeys(re.findall(r"CVE-\d{4}-\d{4,7}", question.upper())):
+        if f"Selected CVE: {cid} —" in context:
+            continue
+        hit = ranked[ranked["cve_id"] == cid]
+        extra.append(cve_context(hit.iloc[0]).replace("Selected CVE:", "CVE asked about:", 1) if len(hit)
+                     else f"{cid} is not among the {len(ranked):,} CVEs this dashboard holds, so FixNext has no details on it here.")
+    return "\n\n".join([context] + extra)
 
 
 def gemini_key():
@@ -1762,13 +1785,13 @@ def ask_gemini(question, context):
         return "The google-genai package isn't installed on this host."
     client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=60_000))  # ms — Cloud → Google is slower than a laptop; never hang the page
     errs = []
-    prompt = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
+    prompt = f"CONTEXT:\n{with_asked_cves(question, context)}\n\nQUESTION: {question}"
     for model in GEMINI_MODELS:
         # Newer Flash models "think" before answering and that eats the output budget, so thinking is
         # turned off where the model allows it, and the budget is generous either way.
         configs = [
             types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1024,
-                                        thinking_config=types.ThinkingConfig(thinking_budget=0)),
+                                        thinking_config=thinking_minimal(types)),
             types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1024),
         ]
         for i, cfg in enumerate(configs):
@@ -1783,6 +1806,8 @@ def ask_gemini(question, context):
                 errs.append(f"{model}#{i}: {type(e).__name__} {str(e)[:150]}")
                 if "Timeout" in type(e).__name__ or "timed out" in str(e).lower():  # network problem: other models won't help
                     return f"Gemini didn't answer in time ({type(e).__name__}). Try again in a few seconds."
+                if getattr(e, "code", None) in SKIP_TO_NEXT_MODEL:
+                    break
     return "Gemini didn't answer — " + " | ".join(errs)
 
 
@@ -1807,7 +1832,7 @@ def ask_gemini_json(instruction, context, schema):
                 kw = dict(system_instruction=rules, temperature=0.2, max_output_tokens=2000,
                           response_mime_type="application/json", response_schema=schema)
                 if thinking:
-                    kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                    kw["thinking_config"] = thinking_minimal(types)
                 r = client.models.generate_content(model=model, contents=prompt, config=types.GenerateContentConfig(**kw))
                 text = (r.text or "").strip()
                 if text:
@@ -1818,6 +1843,8 @@ def ask_gemini_json(instruction, context, schema):
                 errs.append(f"{model}: {type(e).__name__} {str(e)[:150]}")
                 if "Timeout" in type(e).__name__ or "timed out" in str(e).lower():
                     return None, f"Gemini didn't answer in time ({type(e).__name__}). Try again in a few seconds."
+                if getattr(e, "code", None) in SKIP_TO_NEXT_MODEL:
+                    break
     return None, "Gemini didn't answer — " + " | ".join(errs)
 
 
