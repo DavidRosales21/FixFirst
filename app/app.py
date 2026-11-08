@@ -65,13 +65,41 @@ def epss_alpha(value):
 
 # ---------------------------------------------------------------- data
 
+def neighbours_text(df):
+    """'CVE-a (0.92); CVE-b (0.91)' per row from neighbour_N_cve / neighbour_N_sim columns ('' if none)."""
+    pairs = []
+    n = 1
+    while f"neighbour_{n}_cve" in df:
+        sim = pd.to_numeric(df.get(f"neighbour_{n}_sim"), errors="coerce") if f"neighbour_{n}_sim" in df else None
+        pairs.append((df[f"neighbour_{n}_cve"], sim))
+        n += 1
+    if not pairs:
+        return ""
+
+    def row_text(i):
+        parts = []
+        for cves, sims in pairs:
+            cve = cves.iat[i]
+            if pd.isna(cve) or not str(cve).strip():
+                continue
+            s = None if sims is None else sims.iat[i]
+            parts.append(f"{str(cve).strip()} ({s:.2f})" if s is not None and not pd.isna(s) else str(cve).strip())
+        return "; ".join(parts)
+
+    return [row_text(i) for i in range(len(df))]
+
+
 @st.cache_data
 def load_ranked(path):
     df = pd.read_csv(path, dtype={"cve_id": str, "rationale": str, "top_reasons": str, "description": str})
     for col in ["rationale", "top_reasons", "description", "assigner"]:
         df[col] = df[col].fillna("")
-    # Optional column (Granite neighbours): "CVE-2024-1234 (0.93); CVE-2025-…". Missing = empty.
-    df["similar_cves"] = df["similar_cves"].fillna("").astype(str) if "similar_cves" in df else ""
+    # Optional (Granite neighbours): a similar_cves text column, "CVE-2024-1234 (0.93); CVE-2025-…",
+    # or the engine's wide columns neighbour_1_cve / neighbour_1_sim … (similar_exploited.csv).
+    if "similar_cves" in df:
+        df["similar_cves"] = df["similar_cves"].fillna("").astype(str)
+    else:
+        df["similar_cves"] = neighbours_text(df)
     df["vendor_guess"] = df["vendor_guess"].fillna("other")
     df["cwe_name"] = df["cwe_name"].fillna("Unknown")
     for col in ["rank", "score", "cvss3_score", "epss"]:
