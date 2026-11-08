@@ -12,11 +12,11 @@ gatherUsageStats = false
 
 [theme]
 font = "IBM Plex Sans, Helvetica Neue, Arial, sans-serif"
-headingFont = "IBM Plex Sans, Helvetica Neue, Arial, sans-serif"
+headingFont = "Archivo, IBM Plex Sans, Helvetica Neue, Arial, sans-serif"
 codeFont = "IBM Plex Mono, Menlo, Consolas, monospace"
 headingFontWeights = [300, 400, 600]
-baseRadius = "none"
-buttonRadius = "none"
+baseRadius = "medium"
+buttonRadius = "medium"
 
 [[theme.fontFaces]]
 family = "IBM Plex Sans"
@@ -49,26 +49,26 @@ weight = "500"
 style = "normal"
 
 [theme.light]
-primaryColor = "#0F62FE"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F4F4F4"
-textColor = "#161616"
-linkColor = "#0F62FE"
-borderColor = "#E0E0E0"
-dataframeHeaderBackgroundColor = "#E0E0E0"
+primaryColor = "#0D1B26"
+backgroundColor = "#F3EFE7"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#14202B"
+linkColor = "#1F8F5F"
+borderColor = "#E4DED2"
+dataframeHeaderBackgroundColor = "#E9E4DA"
 
 [theme.light.sidebar]
 backgroundColor = "#F4F4F4"
 secondaryBackgroundColor = "#FFFFFF"
 
 [theme.dark]
-primaryColor = "#0F62FE"
-backgroundColor = "#161616"
-secondaryBackgroundColor = "#262626"
-textColor = "#F4F4F4"
-linkColor = "#78A9FF"
-borderColor = "#393939"
-dataframeHeaderBackgroundColor = "#393939"
+primaryColor = "#3FBF84"
+backgroundColor = "#0A141C"
+secondaryBackgroundColor = "#13242F"
+textColor = "#F3EFE7"
+linkColor = "#3FBF84"
+borderColor = "#243643"
+dataframeHeaderBackgroundColor = "#1A2E3C"
 
 [theme.dark.sidebar]
 backgroundColor = "#262626"
