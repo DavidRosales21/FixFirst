@@ -102,8 +102,9 @@ def load_ranked(path):
         df["similar_cves"] = neighbours_text(df)
     df["vendor_guess"] = df["vendor_guess"].fillna("other")
     df["cwe_name"] = df["cwe_name"].fillna("Unknown")
-    for col in ["rank", "score", "cvss3_score", "epss"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+    for col in ["rank", "score", "cvss3_score", "epss", "epss_rank", "flags_rank", "cvss_rank", "assigner_lift", "cwe_lift"]:
+        if col in df:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
     for col in FLAGS:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
     df["has_exploit"] = df[list(FLAGS)].max(axis=1) == 1
@@ -115,8 +116,32 @@ def load_backtest(path):
     return pd.read_csv(path)
 
 
+@st.cache_data
+def load_catches(path):
+    """The exploited CVEs of the 2025 hold-out that FixNext put in its top 500 (optional file)."""
+    if not os.path.exists(path):
+        return None
+    df = pd.read_csv(path, dtype={"cve_id": str})
+    for col in ["rank_fixnext", "rank_epss", "rank_flags_epss", "lag_days", "cvss3_score", "epss"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+
+@st.cache_data
+def load_profile(path):
+    """How the top 500 differs from all 72,670 (optional file)."""
+    if not os.path.exists(path):
+        return None
+    import json
+    with open(path) as f:
+        return json.load(f)
+
+
 ranked = load_ranked(RANKED_PATH)
 backtest = load_backtest(BACKTEST_PATH)
+catches = load_catches(os.path.join(HERE, "catches.csv"))
+profile = load_profile(os.path.join(HERE, "profile.json"))
+CHART_DIR = os.path.join(HERE, "..", "outputs", "charts")
 
 
 # ---------------------------------------------------------------- small helpers
@@ -382,6 +407,37 @@ CSS = """
 .ff-rail button[data-tip]::after{right:calc(100% + 8px);top:50%;transform:translateY(-50%)}
 .ff-theme button[data-tip]::after{top:calc(100% + 6px);left:50%;transform:translateX(-50%)}
 .ff-theme button:focus-visible::after,.ff-rail button:focus-visible::after{opacity:1}
+/* Guide strip: what each page is for (Overview only) */
+.ff-guide{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin:14px 0 0}
+.ff-guide-item{padding:12px 14px;background:var(--ff-layer);border-left:3px solid var(--ff-line)}
+.ff-guide-item.on{border-left-color:#4589FF}
+.ff-guide-item b{display:block;font-size:13px;font-weight:600;margin-bottom:3px}
+.ff-guide-item span{display:block;font-size:12px;line-height:1.45;color:var(--ff-muted)}
+/* Three facts about the top 500 */
+.ff-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:12px;margin:12px 0 4px}
+.ff-fact{background:var(--ff-layer);padding:16px 18px;border-top:3px solid #A56EFF}
+.ff-fact b{display:block;font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:500;line-height:1.1}
+.ff-fact span{display:block;margin-top:6px;font-size:13px;line-height:1.45;color:var(--ff-muted)}
+.ff-fact em{font-style:normal;color:inherit}
+/* Caught-vs-missed cards */
+.ff-catches{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;margin-top:10px}
+.ff-catch{background:var(--ff-layer);padding:16px;border-left:3px solid #4589FF}
+.ff-catch .ff-cve2{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ff-muted)}
+.ff-catch h4{margin:4px 0 10px;font-size:14px;font-weight:600;line-height:1.3}
+.ff-catch .ff-ranks{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--ff-muted)}
+.ff-catch .ff-ranks b{display:block;font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:500;color:inherit}
+.ff-catch .ff-ranks .me b{color:var(--ff-accent)}
+.ff-catch p{margin:10px 0 0;font-size:12px;color:var(--ff-muted);line-height:1.4}
+/* CVE Detail: where the standard scores put it, and how the model reads it */
+.ff-vs{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}
+.ff-vs div{flex:1 1 150px;padding:10px 14px;background:var(--ff-layer);font-size:12px;color:var(--ff-muted)}
+.ff-vs div b{display:block;font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:500;color:inherit;margin-top:2px}
+.ff-vs div.me{border-top:3px solid #4589FF}
+.ff-vs div.me b{color:var(--ff-accent)}
+.ff-how{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+.ff-how li{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;padding:10px 14px;background:var(--ff-layer);font-size:14px;line-height:1.45}
+.ff-how li i{font-style:normal;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 8px;background:var(--ff-line);white-space:nowrap;margin-top:1px}
+.ff-pagenote{margin:-6px 0 10px;font-size:13px;color:var(--ff-muted)}
 @media (hover:hover){.ff-theme button:hover::after,.ff-rail button:hover::after{opacity:1}}
 .stMainBlockContainer{padding-right:72px}
 @media (max-width:640px){.stMainBlockContainer{padding-right:60px}}
@@ -702,6 +758,113 @@ def hero(bt):
     )
 
 
+PAGE_GUIDE = [
+    ("Overview", "The result and the shape of the top 500: how FixNext compares to the standard scores, which exploited CVEs it caught, who and what dominates the list."),
+    ("Fix-Next List", "The ranked list. Filter by vendor, weakness type or month, see where EPSS would have put each CVE, and download top500.csv."),
+    ("CVE Detail", "One CVE: why it ranks here, the exploited CVEs it resembles, the signals, the Granite rationale, and the link to NVD."),
+    ("Methodology", "How the model was tested, what it uses, and what it refuses to use so the result is fair."),
+]
+
+
+def guide_strip(current):
+    items = "".join(
+        f'<div class="ff-guide-item{" on" if name == current else ""}"><b>{esc(name)}</b><span>{esc(text)}</span></div>'
+        for name, text in PAGE_GUIDE
+    )
+    st.html(f'<div class="ff-guide" aria-label="Where to find what">{items}</div>')
+
+
+def page_note(current):
+    text = dict(PAGE_GUIDE).get(current, "")
+    if text:
+        st.html(f'<p class="ff-pagenote">{esc(text)}</p>')
+
+
+def facts_strip(pr):
+    """Three facts that say why these 500, from profile.json."""
+    if not pr:
+        return
+    cwes = pr.get("top_cwes_top500", [])[:3]
+    def short_cwe(name):
+        import re as _re
+        m = _re.search(r"\('([^']+)'\)", name)   # "Improper … ('OS Command Injection')" → OS Command Injection
+        return m.group(1) if m else short(name, 34)
+    others = " and ".join(short_cwe(c["name"]) for c in cwes[1:3])
+    facts = [
+        (f"{pr['pct_epss_under_1pct_top500']:.0f}%",
+         f"of our top 500 have an EPSS under 1% — <em>EPSS-first would never surface them</em>. Across all 72,670 CVEs that share is {pr['pct_epss_under_1pct_all']:.0f}%."),
+        (f"{pr['pct_exploit_code_top500']:.0f}%",
+         f"of our top 500 already have public exploit code, against <em>{pr['pct_exploit_code_all']:.1f}%</em> of all CVEs."),
+        (f"{cwes[0]['pct_top500']:.0f}%" if cwes else "—",
+         f"of the top 500 are <em>{short_cwe(cwes[0]['name'])}</em> alone ({cwes[0]['pct_all']:.1f}% of all CVEs), with {others} next — the bug types attackers actually use." if cwes else ""),
+    ]
+    st.html('<div class="ff-facts">' + "".join(f'<div class="ff-fact"><b>{esc(n)}</b><span>{t}</span></div>' for n, t in facts) + "</div>")
+
+
+def catches_section(df, missed_by_all=18):
+    """The 2025 exploited CVEs the standard scores buried and FixNext caught."""
+    if df is None or df.empty:
+        return
+    only = df[df["bucket"] == "FixNext only"].sort_values("rank_fixnext")
+    both = int((df["bucket"] == "both").sum())
+    chart_heading("Caught before the breach", "Exploited CVEs of 2025 that FixNext put in its top 500 and the exploit-code-then-EPSS baseline did not")
+    cards = []
+    for _, r in only.iterrows():
+        name = str(r["kev_name"]).replace(" Vulnerability", "")
+        ransom = " · used in ransomware" if str(r.get("known_ransomware_use", "")).lower() == "known" else ""
+        cards.append(
+            f'<div class="ff-catch"><span class="ff-cve2">{esc(r["cve_id"])}</span><h4>{esc(name)}</h4>'
+            f'<div class="ff-ranks"><span class="me">FixNext rank<b>#{int(r["rank_fixnext"]):,}</b></span>'
+            f'<span>EPSS rank<b>#{int(r["rank_epss"]):,}</b></span>'
+            f'<span>Exploit code → EPSS<b>#{int(r["rank_flags_epss"]):,}</b></span></div>'
+            f'<p>EPSS {fmt(r["epss"], "{:.3f}")} · CVSS {fmt(r["cvss3_score"], "{:.1f}")} · exploited {int(r["lag_days"])} days after publish{esc(ransom)}</p></div>'
+        )
+    st.html('<div class="ff-catches">' + "".join(cards) + "</div>")
+    st.caption(f"{both} more were caught by both FixNext and the baseline. {missed_by_all} were missed by every ranking — listed in outputs/charts/caught_vs_missed.md.")
+    img = os.path.join(CHART_DIR, "6_caught_vs_missed.png")
+    if os.path.exists(img):
+        with st.expander("All 39 on one chart — FixNext rank vs EPSS rank"):
+            st.image(img, width="stretch")
+
+
+def vs_strip(row):
+    """Where the standard scores rank this CVE, next to ours."""
+    cells = [("FixNext rank", row["rank"], True), ("EPSS rank", row.get("epss_rank"), False),
+             ("Exploit code → EPSS rank", row.get("flags_rank"), False), ("CVSS rank", row.get("cvss_rank"), False)]
+    html = "".join(
+        f'<div class="{"me" if me else ""}">{esc(k)}<b>{"#" + format(int(v), ",") if not is_blank(v) else NO}</b></div>'
+        for k, v, me in cells
+    )
+    st.html(f'<h2 class="ff-h2" style="margin:14px 0 6px">Where each ranking puts it</h2><p class="ff-sub">Out of {SCORED_TOTAL:,} CVEs · 1 = fix first</p><div class="ff-vs">{html}</div>')
+
+
+def how_model_sees(row):
+    """The model's view in plain sentences, each tagged with the signal behind it."""
+    items = []
+    lift = row.get("assigner_lift")
+    if not is_blank(lift) and row["assigner"]:
+        rel = "above" if float(lift) >= 1.2 else ("below" if float(lift) <= 0.8 else "about")
+        items.append(("issuer", f"Issued by {row['assigner']} — CVEs from this issuer were exploited at {float(lift):.1f}× the average rate in 2019–2023 ({rel} average)."))
+    lift = row.get("cwe_lift")
+    if not is_blank(lift):
+        rel = "above" if float(lift) >= 1.2 else ("below" if float(lift) <= 0.8 else "about")
+        items.append(("weakness", f"{row['cwe_name']} — this weakness type was exploited at {float(lift):.1f}× the average rate in 2019–2023 ({rel} average)."))
+    sims = similar_cves(row)
+    if sims:
+        c, sim = sims[0]
+        items.append(("Granite", f"Its description closely resembles {c}, a CVE attackers already used (similarity {sim})."))
+    flags = [label for col, label in FLAGS.items() if row[col] == 1]
+    if flags:
+        items.append(("exploit code", "Public exploit code exists: " + ", ".join(flags) + "."))
+    if not is_blank(row["epss"]):
+        e = float(row["epss"])
+        items.append(("EPSS", f"EPSS {e:.3f} — " + ("high; the industry score agrees." if e >= 0.05 else "low; EPSS alone would not have flagged it.")))
+    if not items:
+        return
+    st.html('<h2 class="ff-h2" style="margin:14px 0 6px">How the model sees it</h2><ul class="ff-how">'
+            + "".join(f"<li><i>{esc(tag)}</i><span>{esc(text)}</span></li>" for tag, text in items) + "</ul>")
+
+
 def cve_card(row, eyebrow, with_signals=True, with_similar=False):
     """The gauge card: rank, CVE id, score ring, reasons and (optionally) the signals line
     and the "looks like these exploited CVEs" line (hidden when there are none)."""
@@ -808,7 +971,8 @@ def grouped_bar_chart(methods, bt, is_ours, positives, row_px=78):
 
 
 def table_view(df):
-    out = df[["rank", "cve_id", "score", "vendor_guess", "cwe_name", "cvss3_score", "epss"]].copy()
+    cols = ["rank", "cve_id", "score", "vendor_guess", "cwe_name", "cvss3_score", "epss"] + (["epss_rank"] if "epss_rank" in df else [])
+    out = df[cols].copy()
     # Short weakness names ("OS Command Injection · CWE-78"): the full name is on CVE Detail.
     out["cwe_name"] = [cwe_label(n, c, limit=24) for n, c in zip(df["cwe_name"], df["cwe_primary"])]
     for col, label in FLAGS.items():
@@ -832,7 +996,7 @@ def styled_table(df):
 
     return (
         view.style
-        .format({"rank": "{:,.0f}", "score": "{:.2f}", "cvss3_score": "{:.1f}", "epss": "{:.2f}"}, na_rep=NO)
+        .format({"rank": "{:,.0f}", "score": "{:.2f}", "cvss3_score": "{:.1f}", "epss": "{:.2f}", "epss_rank": "#{:,.0f}"}, na_rep=NO)
         .apply(cvss_css, subset=["cvss3_score"])
         .apply(epss_css, subset=["epss"])
         .apply(flag_css, subset=list(FLAGS.values()))
@@ -865,6 +1029,7 @@ TABLE_COLUMNS = {
     "cwe_name": st.column_config.TextColumn("Weakness type", width=230),
     "cvss3_score": st.column_config.NumberColumn("CVSS", format="%.1f", width=60, help="CVSS v3 base score, colored by severity"),
     "epss": st.column_config.NumberColumn("EPSS", format="%.2f", width=60, help="Chance of an attack in the next 30 days"),
+    "epss_rank": st.column_config.TextColumn("EPSS rank", width=84, help="Where an EPSS-first ranking puts this CVE, out of 72,670 (1 = first)"),
     **{label: st.column_config.TextColumn(short_label, width=60, help=tip) for label, (short_label, tip) in FLAG_HEADERS.items()},
 }
 
@@ -950,6 +1115,7 @@ else:
 if page == "Overview":
     ticker(filtered)
     hero(backtest)
+    guide_strip("Overview")
 
     if filtered.empty:
         empty_state("No CVEs match these filters", "Open Filters at the top to change them, or clear them all.")
@@ -968,6 +1134,7 @@ if page == "Overview":
             pct = f"{top500['has_exploit'].mean():.0%}" if len(top500) else NO
             c.metric("Top 500 with public exploit code", pct)
             d.metric("Distinct vendors in top 500", f"{top500['vendor_guess'].nunique():,}")
+        facts_strip(profile)
 
         eyebrow = "RANK #1 · FIX THIS NEXT" if int(first["rank"]) == 1 else f"RANK #{int(first['rank'])} · TOP OF YOUR FILTERS"
         cve_card(first, eyebrow)
@@ -1004,6 +1171,9 @@ if page == "Overview":
                     if n_other:
                         st.caption(f"Not shown: {n_other:,} of these {len(top500):,} CVEs ({n_other / len(top500):.0%}) "
                                    "don't name one of the vendors the model tracks (\"other\").")
+        with st.container(key="ffcard_catches"):
+            catches_section(catches)
+
         # Full width: weakness names are long, a third of the page cuts them off.
         with st.container(key="ffcard_cwe"):
             chart_heading("Top weakness types in the top 500", "Top 10, names shortened to 40 characters")
@@ -1023,6 +1193,7 @@ if page == "Overview":
 
 elif page == "Fix-Next List":
     st.title("Fix-Next List")
+    page_note("Fix-Next List")
     ticker(filtered)
     top_n = st.slider("Show top N", min_value=50, max_value=500, value=100, step=10)
     if filtered.empty:
@@ -1040,6 +1211,7 @@ elif page == "Fix-Next List":
 
 elif page == "CVE Detail":
     st.title("CVE Detail")
+    page_note("CVE Detail")
     options = ranked["cve_id"].tolist()
     if st.session_state.get("detail_cve") not in options:
         st.session_state["detail_cve"] = options[0]
@@ -1051,6 +1223,8 @@ elif page == "CVE Detail":
     rationale = str(row["rationale"]).strip()
     body = esc(rationale) if rationale else '<span class="ff-pending">Granite rationale pending for this CVE</span>'
     st.html(f'<div class="ff-box"><h2>Why fix this next</h2><p>{body}</p></div>')
+    vs_strip(row)
+    how_model_sees(row)
 
     severity = "" if is_blank(row["cvss3_severity"]) else str(row["cvss3_severity"]).upper()
     cvss_text = NO if is_blank(row["cvss3_score"]) else f"{row['cvss3_score']:.1f} {severity.title()}".strip()
@@ -1076,6 +1250,7 @@ elif page == "CVE Detail":
 
 else:
     st.title("Methodology")
+    page_note("Methodology")
     st.markdown(
         """
 FixNext ranks every CVE published January–September 2026 by how likely attackers are to actually use it —
