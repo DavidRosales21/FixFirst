@@ -2026,6 +2026,11 @@ def _chat_submit():
     if not q:
         return
     st.session_state["ffchat_in"] = ""
+    # If a click interrupted the run that was answering, the browser still holds the typed question and sends
+    # it again with the click. Same text as the last question = that resend, not a new question: skip it.
+    last_q = next((t for role, t, _ in reversed(st.session_state.get("ffchat_msgs", [])) if role == "user"), None)
+    if q == last_q:
+        return
     st.session_state["ffchat_pending"] = q
 
 
