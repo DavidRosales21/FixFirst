@@ -294,7 +294,7 @@ CSS = """
 .ff-pill.exploit{background:rgba(238,83,150,.18);color:color-mix(in srgb,#EE5396 72%,currentColor)}
 .ff-pill.vendor{background:rgba(0,157,154,.18);color:color-mix(in srgb,#009D9A 75%,currentColor)}
 .ff-similar{margin:12px 0 0;font-size:13px;line-height:2}
-.ff-sim{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 8px;margin-right:6px;background:var(--ff-line);white-space:nowrap}
+.ff-sim{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 8px;margin-right:2px;background:var(--ff-line);white-space:nowrap}
 .ff-sim i{font-style:normal;color:var(--ff-muted);margin-left:2px}
 .ff-signals{display:flex;flex-wrap:wrap;gap:6px 8px;margin-top:14px;font-size:13px;color:var(--ff-muted);align-items:center}
 .ff-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;font-size:12px;color:inherit;background:var(--ff-layer);white-space:nowrap}
@@ -368,6 +368,15 @@ CSS = """
   padding:4px;background:var(--ff-bg,Canvas);border:1px solid var(--ff-line);box-shadow:0 2px 10px rgba(0,0,0,.18)}
 .ff-rail button[hidden]{display:none}
 .ff-rail button[aria-pressed="true"]{color:var(--ff-accent)}
+/* Phones: the four tabs need ~380px in one row, wider than the screen, so they become a 2 x 2 grid
+   (otherwise the whole page scrolls sideways and Methodology is cut off); legend lines may wrap too */
+@media (max-width:520px){
+  .st-key-ffheader [data-testid="stColumn"]:nth-child(2){flex:1 1 100% !important;min-width:0 !important}
+  .st-key-page,.st-key-page [data-testid="stButtonGroup"]{width:100% !important}
+  .st-key-page [role="radiogroup"]{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 !important;overflow:visible !important}
+  .st-key-page button{width:100% !important;min-width:0 !important;justify-content:center}
+  .ff-legend span{white-space:normal}
+}
 .ff-theme button[data-tip]::after,.ff-rail button[data-tip]::after{content:attr(data-tip);position:absolute;white-space:nowrap;
   font-size:12px;padding:4px 8px;background:#393939;color:#F4F4F4;pointer-events:none;opacity:0;transition:opacity 120ms;z-index:2}
 .ff-rail button[data-tip]::after{right:calc(100% + 8px);top:50%;transform:translateY(-50%)}
@@ -687,7 +696,7 @@ def cve_card(row, eyebrow, with_signals=True, with_similar=False):
     sims = similar_cves(row) if with_similar else []
     similar = (
         '<p class="ff-similar"><span class="ff-muted">Looks like these exploited CVEs:</span> '
-        + "".join(f'<span class="ff-sim">{esc(c)}{f" <i>{esc(s)}</i>" if s else ""}</span>' for c, s in sims)
+        + " ".join(f'<span class="ff-sim">{esc(c)}{f" <i>{esc(s)}</i>" if s else ""}</span>' for c, s in sims)
         + "</p>"
     ) if sims else ""
     st.html(
