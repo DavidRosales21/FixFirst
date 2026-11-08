@@ -9,6 +9,7 @@
 #   3. app/sample_ranked_2026.csv and app/sample_backtest.csv (placeholder scores).
 # Theme (light / dark / system) and fonts live in app/.streamlit/config.toml and app/static/.
 
+import base64
 import html
 import os
 import json
@@ -40,7 +41,7 @@ BACKTEST_PATH = (os.environ.get("FIXNEXT_BACKTEST") or os.environ.get("FIXFIRST_
                  or first_existing("backtest.csv", "sample_backtest.csv"))
 USING_SAMPLE = os.path.basename(RANKED_PATH).startswith("sample_")
 
-PAGES = ["Overview", "Fix-Next List", "CVE Detail", "Methodology"]
+PAGES = ["Overview", "Fix-Next List", "CVE Detail", "Methodology", "Team", "For the judges"]
 FLAGS = {"exploitdb": "Exploit-DB", "metasploit": "Metasploit", "nuclei": "Nuclei", "poc_github": "GitHub PoC"}
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
 QUICK_PICKS = {
@@ -279,7 +280,7 @@ CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&display=swap');
 :root{
   /* cream canvas, navy panels, one green accent (html.ff-dark: set by the UI script from the page colour) */
-  --ff-layer:#FFFFFF; --ff-line:#E4DED2; --ff-muted:#5B6B77; --ff-ink:#14202B;
+  --ff-layer:#FFFFFF; --ff-layer2:#F4F1EA; --ff-line:#E4DED2; --ff-muted:#5B6B77; --ff-ink:#14202B;
   --ff-navy:#0D1B26; --ff-navy2:#152836; --ff-on-navy:#F3EFE7; --ff-on-navy-muted:#9FB0BD;
   --ff-green:#3FBF84; --ff-green-ink:#1F8F5F; --ff-green-bg:#E3F5EC; --ff-gold:#C9A86A;
   --ff-teal:#2CB1BC; --ff-teal-ink:#157F88; --ff-teal-bg:#DDF3F5; --ff-amber:#E3A63B; --ff-amber-ink:#A86F10; --ff-amber-bg:#FBEFD6;
@@ -289,7 +290,7 @@ CSS = """
   --ff-ease: cubic-bezier(.2,0,.38,.9);
 }
 html.ff-dark{
-  --ff-layer:#13242F; --ff-line:#243643; --ff-muted:#9FB0BD; --ff-ink:#F3EFE7;
+  --ff-layer:#13242F; --ff-layer2:#1A2E3C; --ff-line:#243643; --ff-muted:#9FB0BD; --ff-ink:#F3EFE7;
   --ff-navy:#0D1B26; --ff-navy2:#1A2E3C; --ff-green-ink:#3FBF84; --ff-green-bg:#123527; --ff-accent:#3FBF84;
   --ff-teal-ink:#4FD1DB; --ff-teal-bg:#0F3A40; --ff-amber-ink:#F0BC5E; --ff-amber-bg:#3B2C10; --ff-coral-ink:#FF7B78; --ff-coral-bg:#3F1A1A; --ff-violet-ink:#A99CFF; --ff-violet-bg:#2A2452;
 }
@@ -629,6 +630,56 @@ html.ff-dark [data-testid="stPopoverBody"] [data-testid="stButtonGroup"] button[
 .ff-fact,.ff-catch,.ff-guide-item,[data-testid="stMetric"],.ff-tile,.ff-vs > div,.ff-how li,[class*="st-key-ffcard"]{transition:transform .25s var(--ff-ease),box-shadow .25s var(--ff-ease),opacity .5s var(--ff-ease)}
 @media (hover:hover){.ff-fact:hover,.ff-catch:hover,.ff-guide-item:hover,[data-testid="stMetric"]:hover,.ff-tile:hover,.ff-vs > div:hover,.ff-how li:hover,[class*="st-key-ffcard"]:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(13,27,38,.14)}}
 @media (prefers-reduced-motion:reduce){.ff-reveal{opacity:1;transform:none;transition:none}}
+.st-key-ffticket,.st-key-ffbrief{position:relative;margin-top:18px;padding:24px 26px 22px;background:var(--ff-navy);color:var(--ff-on-navy);border-radius:var(--ff-r);border-left:5px solid var(--ff-violet)}
+.st-key-ffticket .ff-ask-sub,.st-key-ffbrief .ff-ask-sub{color:var(--ff-on-navy-muted)}
+.st-key-ffticket .stButton button,.st-key-ffbrief .stButton button{background:var(--ff-violet) !important;border:0 !important;color:#fff !important;border-radius:var(--ff-r2) !important;font-weight:600}
+.st-key-ffticket .stButton button p,.st-key-ffbrief .stButton button p{color:#fff !important}
+.st-key-ffticket .stDownloadButton button,.st-key-ffbrief .stDownloadButton button{background:transparent !important;border:1px solid rgba(243,239,231,.3) !important;color:var(--ff-on-navy) !important;border-radius:var(--ff-r2) !important}
+.st-key-ffticket .stDownloadButton button p,.st-key-ffbrief .stDownloadButton button p{color:var(--ff-on-navy) !important}
+.ff-ticket,.ff-brief{margin:12px 0 10px;padding:18px 20px;background:var(--ff-navy2);border-radius:var(--ff-r2);font-size:13.5px;line-height:1.5}
+.ff-ticket-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}.ff-ticket-head b{font-family:var(--ff-display);font-size:17px;font-weight:700}
+.ff-prio{font:700 12px/1 var(--ff-display);padding:6px 9px;border-radius:6px;background:var(--ff-amber);color:var(--ff-navy)}.ff-prio.P1{background:var(--ff-coral);color:#fff}.ff-prio.P3{background:var(--ff-teal);color:var(--ff-navy)}
+.ff-ticket-meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin:0 0 12px;font-size:12px;color:var(--ff-on-navy-muted)}.ff-ticket-meta b{display:block;color:var(--ff-on-navy);font-size:13px}
+.ff-ticket-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:18px}.ff-ticket h4,.ff-brief h4{margin:0 0 6px;font:700 12px/1.4 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--ff-violet-ink)}
+.ff-ticket ul,.ff-ticket ol,.ff-brief ol{margin:0;padding-left:20px}.ff-ticket li,.ff-brief li{margin:0 0 5px}
+.ff-ticket-foot{margin:12px 0 0;font-size:12px;color:var(--ff-on-navy-muted)}.ff-ticket-foot i{font-style:normal;opacity:.7}
+.ff-brief h3{margin:0 0 8px;font-family:var(--ff-display);font-size:18px;font-weight:700}.ff-brief p{margin:0 0 10px}
+.ff-stale{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:10px;background:rgba(227,166,59,.25);color:var(--ff-amber);font-size:11px}
+.ff-team-hero{display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:center;background:var(--ff-navy);color:var(--ff-on-navy);border-radius:var(--ff-r);padding:28px 32px;margin:4px 0 20px}
+.ff-team-hero h2{margin:0 0 10px;font-family:var(--ff-display);font-size:clamp(20px,2.2vw,28px);font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.ff-team-hero p{margin:0;color:var(--ff-on-navy-muted);font-size:14px;line-height:1.5;max-width:60em}.ff-team-hero .ff-eyebrow{color:var(--ff-green);margin-bottom:10px}
+.ff-faces{display:flex}.ff-face{width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--ff-navy);box-shadow:0 0 0 3px var(--ff-green);margin-right:-14px;background:var(--ff-navy2)}
+.ff-face.teal{box-shadow:0 0 0 3px var(--ff-teal)}.ff-face.violet{box-shadow:0 0 0 3px var(--ff-violet)}.ff-face.amber{box-shadow:0 0 0 3px var(--ff-amber)}
+.ff-face-txt{display:grid;place-items:center;font:700 20px/1 var(--ff-display);color:var(--ff-on-navy)}
+@media (max-width:760px){.ff-team-hero{grid-template-columns:1fr}}
+.ff-team{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:18px;margin:8px 0 20px}
+.ff-member{display:grid;grid-template-columns:150px 1fr;gap:22px;padding:24px;background:var(--ff-layer);border:1px solid var(--ff-line);border-radius:var(--ff-r);border-top:5px solid var(--ff-green)}
+.ff-member.teal{border-top-color:var(--ff-teal)}.ff-member.violet{border-top-color:var(--ff-violet)}.ff-member.amber{border-top-color:var(--ff-amber)}
+.ff-portrait{width:150px;height:150px;border-radius:22px;object-fit:cover;display:block}
+.ff-portrait-txt{display:grid;place-items:center;font:700 40px/1 var(--ff-display);color:var(--ff-navy);background:var(--ff-green)}
+.ff-member.teal .ff-portrait-txt{background:var(--ff-teal)}.ff-member.violet .ff-portrait-txt{background:var(--ff-violet);color:#fff}.ff-member.amber .ff-portrait-txt{background:var(--ff-amber)}
+.ff-member-body b{display:block;font-family:var(--ff-display);font-size:21px;font-weight:700;letter-spacing:-.01em}
+.ff-role-chip{display:inline-block;margin:6px 8px 0 0;padding:4px 10px;border-radius:12px;font:600 11px/1.4 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;background:var(--ff-green-bg);color:var(--ff-green-ink)}
+.ff-member.teal .ff-role-chip{background:var(--ff-teal-bg);color:var(--ff-teal-ink)}.ff-member.violet .ff-role-chip{background:var(--ff-violet-bg);color:var(--ff-violet-ink)}.ff-member.amber .ff-role-chip{background:var(--ff-amber-bg);color:var(--ff-amber-ink)}
+.ff-member-program{display:inline-block;margin-top:6px;font-size:12px;color:var(--ff-muted)}
+.ff-member-about{margin:12px 0 12px;font-size:14px;line-height:1.55}
+.ff-member-did{padding:10px 14px;border-radius:var(--ff-r2);background:var(--ff-layer2,#F4F4F4);font-size:13px;line-height:1.5;color:var(--ff-muted)}
+.ff-member-did i{display:block;font:600 11px/1.4 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ff-ink);margin-bottom:3px;font-style:normal}
+@media (max-width:640px){.ff-member{grid-template-columns:1fr}.ff-portrait{width:110px;height:110px}}
+.ff-judge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px;margin:18px 0}
+.ff-judge{display:block;padding:16px 18px;background:var(--ff-navy);color:var(--ff-on-navy) !important;text-decoration:none !important;border-radius:var(--ff-r2);border-left:4px solid var(--ff-green)}
+.ff-judge.teal{border-left-color:var(--ff-teal)}.ff-judge.violet{border-left-color:var(--ff-violet)}.ff-judge.amber{border-left-color:var(--ff-amber)}
+.ff-judge b{display:block;font-family:var(--ff-display);font-size:16px}.ff-judge span{font-size:12px;color:var(--ff-on-navy-muted)}
+@media (hover:hover){.ff-judge:hover{transform:translateY(-2px)}}
+.ff-note{background:var(--ff-navy);color:var(--ff-on-navy);border-radius:var(--ff-r);padding:26px 30px;margin:6px 0 10px;border-left:5px solid var(--ff-green);font-size:15px;line-height:1.6;max-width:72em}
+.ff-note.teal{border-left-color:var(--ff-teal)}.ff-note.violet{border-left-color:var(--ff-violet)}.ff-note.amber{border-left-color:var(--ff-amber)}.ff-note.coral{border-left-color:var(--ff-coral)}
+.ff-note p{margin:0 0 12px}.ff-note-hello{font-family:var(--ff-display);font-size:20px;font-weight:700}
+.ff-note-one{padding:10px 14px;background:rgba(243,239,231,.08);border-radius:var(--ff-r2);font-weight:600}
+.ff-note-sign{margin:0 !important;color:var(--ff-on-navy-muted);font-size:13px}
+.ff-qa{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 8px}.ff-qa span{padding:7px 12px;border-radius:20px;background:var(--ff-layer);border:1px solid var(--ff-line);font-size:13px}
+[data-testid="stTabs"] [data-baseweb="tab-list"]{gap:4px}[data-testid="stTabs"] button[data-baseweb="tab"]{border-radius:20px;padding:6px 14px;font-family:var(--ff-display);font-weight:600}
+[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"]{background:var(--ff-navy);color:var(--ff-on-navy)}[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] p{color:var(--ff-on-navy) !important}
+[data-testid="stTabs"] [data-baseweb="tab-highlight"],[data-testid="stTabs"] [data-baseweb="tab-border"]{display:none}
 /* colour by meaning: green = FixNext · teal = EPSS/industry · amber = said wait · coral = exploited/critical · violet = Granite & Gemini */
 .st-key-ffkpis [data-testid="stColumn"]:nth-child(1) [data-testid="stMetric"]{border-top:4px solid var(--ff-green)}
 .st-key-ffkpis [data-testid="stColumn"]:nth-child(2) [data-testid="stMetric"]{border-top:4px solid var(--ff-violet)}
@@ -1358,7 +1409,7 @@ def hero(bt):
             c1.button("Open the Fix-Next list", on_click=open_page, args=("Fix-Next List",), key="ffcta1", type="primary", use_container_width=True)
             submission = ranked.head(500)[["cve_id"]].to_csv(index=False)
             c2.download_button("Download top500.csv", data=submission, file_name="top500.csv", mime="text/csv", key="ffcta2", use_container_width=True)
-            st.html('<p class="ff-hero-cap">Hosted at fixnext.select · code and model card on GitHub · "Ask FixNext" in the corner answers questions about any CVE.</p>')
+            st.html('<p class="ff-hero-cap">Hosted at fixnext.select · code and model card on GitHub · "Ask FixNext" in the corner answers questions about any CVE; Gemini also drafts fix tickets and the weekly briefing.</p>')
 
 
 SLOPE_VIEWS = {
@@ -1428,6 +1479,122 @@ def page_note(current):
     text = dict(PAGE_GUIDE).get(current, "")
     if text:
         st.html(f'<p class="ff-pagenote">{esc(text)}</p>')
+
+
+TEAM = [
+    # name, program, role on FixNext, what they did this weekend, about them (their own words), tile colour
+    ("Hossam Abdelaziz", "Computer Science — Mobile Computing (B.Sc.)", "Lead · model · dashboard",
+     "Planned the weekend, built the ranking and the back-test, designed and built the dashboard, reviewed every pull request against the leakage rules, and wrote the Devpost.",
+     "Hossam is a Computer Science student at Sheridan College in the Mobile Computing bachelor's program, and the founder of North via Tech, where he builds software for small businesses. "
+     "He leads by writing things down: a plan before the first line of code, a numbered task for every teammate, a review before every merge. "
+     "FixNext is the kind of problem he likes most — a real decision (what do we fix next?) where a careful model, honest validation and a product someone can actually use matter more than a bigger model. "
+     "He is currently looking for a software or data internship for 2027 — if FixNext made you want to talk, he would like that.", "green"),
+    ("David Rosales", "Computer Science", "Repo · hosting · Devpost",
+     "Set up the GitHub repo and Streamlit Community Cloud, kept fixnext.streamlit.app rebuilding from main, saved the Devpost draft before the 8 PM gate, and diagnosed the Gemini-on-Cloud bug on Sunday morning.",
+     "David is a Computer Science student at Sheridan College and a passionate software developer from Colombia. He enjoys building practical technology solutions, exploring AI, cloud computing and software development. "
+     "As the creator of StudIA Notes, he is driven by turning ideas into real-world applications. Always curious and eager to learn, he enjoys collaborating with others and tackling challenging problems through technology.", "teal"),
+    ("Calvin Aremu", "Computer Science", "IBM Granite · video",
+     "Ran granite-embedding on 180,308 CVE descriptions on Colab, generated the Granite rationales for the top 100, and voiced and recorded the demo video.",
+     "", "violet"),
+    ("Antesh Sharma", "Computer Science", "Words · judges' page",
+     "Shaped the note to the judges and kept the team honest about what a judge actually wants to hear.",
+     "Computer Science student and developer passionate about cloud computing, software architecture, and building practical digital solutions. "
+     "He enjoys bridging the gap between solid back-end engineering and clean, intuitive user interfaces that solve real-world problems.", "amber"),
+]
+
+
+def team_photo(name):
+    photo = os.path.join(HERE, "static", "team", name.split()[0].lower() + ".jpg")
+    if not os.path.exists(photo):
+        return None
+    with open(photo, "rb") as fh:
+        return "data:image/jpeg;base64," + base64.b64encode(fh.read()).decode()
+
+
+def team_page():
+    st.title("Team")
+    # the strip: four faces, one line
+    faces = ""
+    for name, program, role, did, about, tone in TEAM:
+        src = team_photo(name)
+        faces += (f'<img class="ff-face {tone}" src="{src}" alt="{esc(name)}">' if src
+                  else f'<span class="ff-face ff-face-txt {tone}">{esc("".join(w[0] for w in name.split()[:2]))}</span>')
+    st.html(f'<div class="ff-team-hero"><div class="ff-faces">{faces}</div>'
+            '<div><p class="ff-eyebrow">Sheridan College · Computer Science</p>'
+            '<h2>Four students, one weekend, one question: what should a security team fix next?</h2>'
+            '<p>We used AI assistants for coding and planning. Every modelling decision, every validation number and every "we refuse to use this column" was made and checked by us.</p></div></div>')
+    group = os.path.join(HERE, "static", "team.jpg")
+    if os.path.exists(group):
+        st.image(group, width="stretch", caption="FixNext at the Sheridan Datathon 2026")
+    cards = []
+    for name, program, role, did, about, tone in TEAM:
+        src = team_photo(name)
+        portrait = (f'<img class="ff-portrait" src="{src}" alt="{esc(name)}">' if src
+                    else f'<div class="ff-portrait ff-portrait-txt">{esc("".join(w[0] for w in name.split()[:2]))}</div>')
+        about_html = f'<p class="ff-member-about">{esc(about)}</p>' if about else '<p class="ff-member-about ff-pending">Bio on its way.</p>'
+        cards.append(
+            f'<div class="ff-member {tone}">{portrait}'
+            f'<div class="ff-member-body"><b>{esc(name)}</b><span class="ff-role-chip">{esc(role)}</span>'
+            f'<span class="ff-member-program">{esc(program)}</span>{about_html}'
+            f'<div class="ff-member-did"><i>This weekend</i>{esc(did)}</div></div></div>')
+    st.html('<div class="ff-team">' + "".join(cards) + '</div>')
+    st.html('<div class="ff-box"><h2>How we worked</h2>'
+            '<p>One lead with a plan and a message protocol (every task numbered, every result reviewed), two builders, one writer. '
+            'Everything a judge can see — the ranking, the back-test, the charts, the dashboard, the rationales — went through a review against the leakage rules before it was merged.</p></div>')
+
+
+JUDGE_NOTES = [
+    ("IBM track", "green", "Dear IBM judges,",
+     "You wrote the benchmark. We read it the way our parents read the terms and conditions: all of it, twice, suspiciously. "
+     "72,670 CVEs, ranked with nothing newer than the end of each one's publish month. 19 of the 39 CVEs that attackers went on to use in 2025 are in our top 500 — the best standard ranking finds 17, and we checked that number more times than we checked our phones. "
+     "Granite reads every description and tells us which new CVEs look like the ones attackers already used; it's our fourth most important feature, and we kept the experiments where Granite <em>didn’t</em> help, because you'd have asked. "
+     "The columns that leak the future are refused in code. Not in a footnote. In code.",
+     "If one thing: open the Overview and watch ConnectWise ScreenConnect climb out of EPSS's basement."),
+    ("Banks & sponsors", "teal", "Dear Tangerine, Scotiabank, RBC, CIBC and BMO judges,",
+     "You run patch programs, which means you've seen a Monday with 2,000 \"critical\" vulnerabilities and one engineer. FixNext is the list that engineer wants: what to fix next, why, and a ticket to go with it. "
+     "It is boring in all the right places — pinned versions, a frozen model, a back-test you can re-run yourself — and exciting in exactly one: the four vulnerabilities every standard score buried that we caught before they were exploited. "
+     "We also know the first question a bank asks is \"and what does it miss?\" — so the 18 nobody caught are on the page too, with names.",
+     "If one thing: click any CVE, then \"Draft the fix ticket\". That's your change request, written."),
+    ("Big tech & AI", "violet", "Dear OpenAI, Meta and Microsoft judges,",
+     "Two Granite models, one Gemini, zero slides about AGI. Granite does similarity and rationales; Gemini does grounded Q&A, structured fix tickets and a briefing that reads your filters — and none of it is inside the ranking, so nothing can leak. "
+     "Our favourite result is the one that went against us: with 39 positives, a nearest-neighbour similarity beat raw embeddings as a feature. Small data has strong opinions, and we wrote them down instead of arguing with them. "
+     "Also, one of our rationales once claimed a CVE had \"high EPSS of 0.009\". We fixed the prompt. We're telling you so you know we read our own outputs.",
+     "If one thing: Methodology → the ablation table. It's short and it's honest."),
+    ("Consulting & cloud", "amber", "Dear consulting, cloud and industry judges,",
+     "You've been asked \"so what do we actually do Monday?\" more times than you can count. So have we, by you, in our heads, all night. "
+     "Filter the list to a client's world — Microsoft, no exploit code yet, EPSS under 1% — press \"Monday briefing\", and Gemini writes the week's patch plan from a ranking the client can audit. Change a filter, the briefing tells you it's stale. We know what a stale slide costs. "
+     "It runs on a free tier, rebuilds from main, and the domain was eleven dollars. Scaling it is a conversation we'd love to have.",
+     "If one thing: Fix-Next List → Filters → \"EPSS would miss these\" → Monday briefing."),
+    ("Sheridan", "coral", "Dear Sheridan host,",
+     "Scope, method, project management: one plan, a numbered message for every task, a review before every merge, and a model card that admits what we don't know — including why the chart says 20 and the headline says 19. "
+     "Four Computer Science students, one weekend, one question answered, and a total of zero hours of sleep for the one who wrote this. He says it was worth it. He is not a reliable witness right now.",
+     "If one thing: the Team page. It's us."),
+]
+
+
+def judges_page():
+    st.title("For the judges")
+    st.html('<p class="ff-pagenote">You have ninety seconds and five kinds of expertise in the room. Pick your tab — the note is for you.</p>')
+    path = os.path.join(HERE, "judges.md")
+    tabs = st.tabs([n[0] for n in JUDGE_NOTES])
+    for tab, (name, tone, hello, body, one) in zip(tabs, JUDGE_NOTES):
+        with tab:
+            st.html(f'<div class="ff-note {tone}"><p class="ff-note-hello">{esc(hello)}</p><p>{body}</p>'
+                    f'<p class="ff-note-one">{esc(one)}</p><p class="ff-note-sign">— Hossam, David, Calvin and Antesh · FixNext</p></div>')
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            extra = fh.read().strip()
+        if extra and not extra.startswith("*(Antesh"):
+            st.markdown(extra)
+    st.html('<p class="ff-pop-label" style="margin-top:22px">Questions we hope you ask</p>'
+            '<div class="ff-qa"><span>Why not just EPSS?</span><span>How do you know you didn\'t leak?</span><span>What is Granite doing, exactly?</span>'
+            '<span>Which CVE would you fix today?</span><span>Why 20 on the chart and 19 in the headline?</span></div>')
+    st.html('<div class="ff-judge-grid">'
+            '<a class="ff-judge green" href="https://fixnext.select" target="_blank"><b>fixnext.select</b><span>the product, in the browser</span></a>'
+            '<a class="ff-judge teal" href="https://github.com/DavidRosales21/FixNext" target="_blank"><b>GitHub</b><span>code, model card, top500.csv</span></a>'
+            '<a class="ff-judge violet" href="https://github.com/DavidRosales21/FixNext/blob/main/outputs/MODEL_CARD.md" target="_blank"><b>Model card</b><span>every number, every ablation</span></a>'
+            '<a class="ff-judge amber" href="https://github.com/DavidRosales21/FixNext/blob/main/outputs/backtest.md" target="_blank"><b>Back-test</b><span>train 2024 → test 2025</span></a>'
+            '</div>')
 
 
 def facts_strip(pr):
@@ -1517,7 +1684,7 @@ def how_model_sees(row):
 
 # ---------------------------------------------------------------- Ask FixNext (Gemini)
 
-GEMINI_MODELS = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite"]
 
 
 def gemini_key():
@@ -1593,26 +1760,197 @@ def ask_gemini(question, context):
         from google.genai import types
     except Exception:
         return "The google-genai package isn't installed on this host."
-    client = genai.Client(api_key=key)
-    last = None
+    client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=60_000))  # ms — Cloud → Google is slower than a laptop; never hang the page
+    errs = []
     prompt = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
     for model in GEMINI_MODELS:
         # Newer Flash models "think" before answering and that eats the output budget, so thinking is
         # turned off where the model allows it, and the budget is generous either way.
         configs = [
-            types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1500,
+            types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1024,
                                         thinking_config=types.ThinkingConfig(thinking_budget=0)),
-            types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1500),
+            types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1024),
         ]
-        for cfg in configs:
+        for i, cfg in enumerate(configs):
             try:
                 r = client.models.generate_content(model=model, contents=prompt, config=cfg)
                 text = (r.text or "").strip()
                 if text:
                     return text + f"\n\n*{model}*"
-            except Exception as e:  # try the next config / model name
-                last = e
-    return f"Gemini didn't answer ({type(last).__name__ if last else 'no response'})."
+                fr = r.candidates[0].finish_reason if r.candidates else "no candidates"
+                errs.append(f"{model}#{i}: empty answer ({fr})")
+            except Exception as e:  # try the next config / model name, but say what happened
+                errs.append(f"{model}#{i}: {type(e).__name__} {str(e)[:150]}")
+                if "Timeout" in type(e).__name__ or "timed out" in str(e).lower():  # network problem: other models won't help
+                    return f"Gemini didn't answer in time ({type(e).__name__}). Try again in a few seconds."
+    return "Gemini didn't answer — " + " | ".join(errs)
+
+
+def ask_gemini_json(instruction, context, schema):
+    """Gemini with a JSON schema: the fix ticket and the briefing come back as data, not prose."""
+    key = gemini_key()
+    if not key:
+        return None, "no key"
+    try:
+        from google import genai
+        from google.genai import types
+    except Exception:
+        return None, "The google-genai package isn't installed on this host."
+    client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=75_000))  # ms — never hang the page
+    prompt = f"CONTEXT:\n{context}\n\nTASK: {instruction}"
+    rules = (SYSTEM_RULES + " Fill every field of the JSON schema from the context only; where the context has no value, write 'unknown'. "
+             "Do not invent CVE ids, products, dates or numbers.")
+    errs = []
+    for model in GEMINI_MODELS:
+        for thinking in (True, False):
+            try:
+                kw = dict(system_instruction=rules, temperature=0.2, max_output_tokens=2000,
+                          response_mime_type="application/json", response_schema=schema)
+                if thinking:
+                    kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                r = client.models.generate_content(model=model, contents=prompt, config=types.GenerateContentConfig(**kw))
+                text = (r.text or "").strip()
+                if text:
+                    return json.loads(text), model
+                fr = r.candidates[0].finish_reason if r.candidates else "no candidates"
+                errs.append(f"{model}: empty answer ({fr})")
+            except Exception as e:
+                errs.append(f"{model}: {type(e).__name__} {str(e)[:150]}")
+                if "Timeout" in type(e).__name__ or "timed out" in str(e).lower():
+                    return None, f"Gemini didn't answer in time ({type(e).__name__}). Try again in a few seconds."
+    return None, "Gemini didn't answer — " + " | ".join(errs)
+
+
+TICKET_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"}, "product": {"type": "string"}, "priority": {"type": "string", "enum": ["P1", "P2", "P3"]},
+        "due_in_days": {"type": "integer"}, "owner": {"type": "string"},
+        "why_now": {"type": "array", "items": {"type": "string"}},
+        "actions": {"type": "array", "items": {"type": "string"}},
+        "what_we_dont_know": {"type": "string"},
+    },
+    "required": ["title", "product", "priority", "due_in_days", "owner", "why_now", "actions", "what_we_dont_know"],
+}
+
+BRIEF_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "headline": {"type": "string"},
+        "summary": {"type": "string"},
+        "fix_this_week": {"type": "array", "items": {"type": "object", "properties": {
+            "cve_id": {"type": "string"}, "reason": {"type": "string"}}, "required": ["cve_id", "reason"]}},
+        "epss_would_miss": {"type": "string"},
+        "caveat": {"type": "string"},
+    },
+    "required": ["headline", "summary", "fix_this_week", "epss_would_miss", "caveat"],
+}
+
+
+def ticket_markdown(t, cve_id):
+    why = "\n".join(f"- {x}" for x in t.get("why_now", []))
+    acts = "\n".join(f"{i + 1}. {x}" for i, x in enumerate(t.get("actions", [])))
+    return (f"# [{t.get('priority', 'P2')}] {t.get('title', cve_id)}\n\n"
+            f"**CVE:** {cve_id}  \n**Product:** {t.get('product', 'unknown')}  \n**Owner:** {t.get('owner', 'unknown')}  \n"
+            f"**Due:** {t.get('due_in_days', '?')} days\n\n## Why now\n{why}\n\n## Actions\n{acts}\n\n"
+            f"## Open questions\n{t.get('what_we_dont_know', '')}\n\n_Drafted by FixNext (IBM Granite ranking + Google Gemini)._")
+
+
+def fix_ticket_panel(row):
+    """CVE Detail: one click turns the ranking's signals into a fix ticket an engineer can paste into Jira."""
+    if not gemini_key():
+        return
+    cve_id = row["cve_id"]
+    with st.container(key="ffticket"):
+        st.html('<div class="ff-ask-head"><div><h2>Draft the fix ticket</h2>'
+                '<p class="ff-ask-sub">Gemini turns this CVE\'s signals into a ticket: priority, owner, due date, why now, actions. From FixNext\'s data only.</p></div>'
+                '<span class="ff-ask-chip">Google Gemini · structured output</span></div>')
+        if st.button("Draft the ticket", key=f"ticket_go_{cve_id}", icon=":material/assignment:"):
+            with st.spinner("Drafting…"):
+                data, model = ask_gemini_json(
+                    "Write the fix ticket for the selected CVE. priority: P1 if FixNext rank <= 100 or it is on KEV, P2 if rank <= 500, else P3. "
+                    "due_in_days: 7 for P1, 30 for P2, 90 for P3. owner: the team that owns that product type (e.g. 'Windows platform team', 'Web app team'). "
+                    "why_now: 3-5 short bullets citing the rank, EPSS, exploit code, issuer/weakness lift and the exploited CVEs it resembles. "
+                    "actions: 3-6 concrete steps (inventory, patch/mitigate, verify, monitor). what_we_dont_know: one sentence.",
+                    project_context() + "\n\n" + cve_context(row), TICKET_SCHEMA)
+            st.session_state[f"ticket_{cve_id}"] = (data, model)
+        got = st.session_state.get(f"ticket_{cve_id}")
+        if got:
+            data, model = got
+            if not data:
+                st.warning(model)
+            else:
+                why = "".join(f"<li>{esc(x)}</li>" for x in data.get("why_now", []))
+                acts = "".join(f"<li>{esc(x)}</li>" for x in data.get("actions", []))
+                st.html(f'<div class="ff-ticket"><div class="ff-ticket-head"><span class="ff-prio {esc(data.get("priority", "P2"))}">{esc(data.get("priority", "P2"))}</span>'
+                        f'<b>{esc(data.get("title", cve_id))}</b></div>'
+                        f'<div class="ff-ticket-meta"><span>Product<b>{esc(data.get("product", "unknown"))}</b></span><span>Owner<b>{esc(data.get("owner", "unknown"))}</b></span>'
+                        f'<span>Due<b>{esc(str(data.get("due_in_days", "?")))} days</b></span><span>CVE<b>{esc(cve_id)}</b></span></div>'
+                        f'<div class="ff-ticket-cols"><div><h4>Why now</h4><ul>{why}</ul></div><div><h4>Actions</h4><ol>{acts}</ol></div></div>'
+                        f'<p class="ff-ticket-foot">Open question: {esc(data.get("what_we_dont_know", ""))} <i>· {esc(model)}</i></p></div>')
+                st.download_button("Download as Markdown (Jira / GitHub issue)", data=ticket_markdown(data, cve_id),
+                                   file_name=f"{cve_id}-fix-ticket.md", mime="text/markdown", key=f"ticket_dl_{cve_id}")
+
+
+def briefing_context(df):
+    top = df.head(25)
+    lines = []
+    for _, r in top.iterrows():
+        flags = ", ".join(label for col, label in FLAGS.items() if r[col] == 1) or "none"
+        lines.append(f"{r['cve_id']} rank {int(r['rank'])} score {fmt(r['score'])} EPSS {fmt(r['epss'], '{:.3f}')} CVSS {fmt(r['cvss3_score'], '{:.1f}')} "
+                     f"vendor {r['vendor_guess']} weakness {short(str(r['cwe_name']), 40)} exploit code: {flags}; {short(str(r['description']), 140)}")
+    n_low = int((df["epss"] < 0.01).sum()); n_ex = int(df["has_exploit"].sum())
+    return (f"The reader's current filter: {filter_summary_text()}. It matches {len(df):,} CVEs; {n_low:,} of them have EPSS under 1%; {n_ex:,} have public exploit code. "
+            f"The top {len(top)} by FixNext rank:\n" + "\n".join(lines))
+
+
+def filter_summary_text():
+    s = st.session_state
+    parts = []
+    if s.get("f_pick") in QUICK_PICKS: parts.append(s["f_pick"])
+    if s.get("f_rank") in RANK_STEPS and s["f_rank"] != "All 5,000": parts.append(s["f_rank"])
+    if s.get("f_epss") in EPSS_STEPS and s["f_epss"] != "Any": parts.append("EPSS " + s["f_epss"])
+    if s.get("f_vendor"): parts.append("vendors " + ", ".join(s["f_vendor"]))
+    if s.get("f_cwe"): parts.append("weakness " + ", ".join(short(x, 30) for x in s["f_cwe"]))
+    if s.get("f_sev"): parts.append("severity " + ", ".join(str(x).title() for x in s["f_sev"]))
+    if s.get("f_exploit"): parts.append("public exploit code only")
+    if s.get("f_month"): parts.append("months " + ", ".join(month_label(m) for m in s["f_month"]))
+    if (s.get("f_query") or "").strip(): parts.append(f"search '{s['f_query'].strip()}'")
+    return "; ".join(parts) if parts else "no filters (the whole top 5,000)"
+
+
+def briefing_panel(df):
+    """Fix-Next List: Gemini writes the week's patch briefing for whatever the filters currently show."""
+    if not gemini_key() or df.empty:
+        return
+    sig = f"{len(df)}:{filter_summary_text()}"
+    with st.container(key="ffbrief"):
+        st.html('<div class="ff-ask-head"><div><h2>Monday briefing</h2>'
+                f'<p class="ff-ask-sub">Gemini writes the patch briefing for the {len(df):,} CVEs your filters show — change a filter, write it again.</p></div>'
+                '<span class="ff-ask-chip">Google Gemini · reads your filters</span></div>')
+        if st.button("Write the briefing", key="brief_go", icon=":material/edit_note:"):
+            with st.spinner("Writing…"):
+                data, model = ask_gemini_json(
+                    "Write this week's patch briefing for a security lead, from the listed CVEs only. headline: one line. summary: 2-3 sentences on what this slice is "
+                    "(vendors, weakness types, exploit code, EPSS). fix_this_week: the 5 CVEs to fix first, each with a one-line reason citing its signals. "
+                    "epss_would_miss: one sentence on how many of these an EPSS-first list would surface and why. caveat: one honest sentence on what the model cannot know.",
+                    project_context() + "\n\n" + briefing_context(df), BRIEF_SCHEMA)
+            st.session_state["brief"] = (sig, data, model)
+        got = st.session_state.get("brief")
+        if got:
+            bsig, data, model = got
+            if not data:
+                st.warning(model)
+            else:
+                items = "".join(f'<li><b>{esc(x.get("cve_id", ""))}</b> — {esc(x.get("reason", ""))}</li>' for x in data.get("fix_this_week", []))
+                stale = '<span class="ff-stale">filters changed since this was written — write it again</span>' if bsig != sig else ""
+                st.html(f'<div class="ff-brief"><h3>{esc(data.get("headline", ""))}</h3><p>{esc(data.get("summary", ""))}</p>'
+                        f'<h4>Fix this week</h4><ol>{items}</ol><p><b>What EPSS would miss:</b> {esc(data.get("epss_would_miss", ""))}</p>'
+                        f'<p class="ff-ticket-foot">{esc(data.get("caveat", ""))} <i>· {esc(model)}</i> {stale}</p></div>')
+                md = (f"# {data.get('headline', '')}\n\n{data.get('summary', '')}\n\n## Fix this week\n" +
+                      "\n".join(f"{i + 1}. **{x.get('cve_id', '')}** — {x.get('reason', '')}" for i, x in enumerate(data.get("fix_this_week", []))) +
+                      f"\n\n**What EPSS would miss:** {data.get('epss_would_miss', '')}\n\n_{data.get('caveat', '')}_\n\n_Filters: {filter_summary_text()}. Drafted by FixNext (IBM Granite ranking + Google Gemini)._")
+                st.download_button("Download the briefing (Markdown)", data=md, file_name="fixnext-briefing.md", mime="text/markdown", key="brief_dl")
 
 
 def ask_panel(key, context_fn, placeholder, examples):
@@ -2079,6 +2417,7 @@ elif page == "Fix-Next List":
         st.caption(f"Showing the top {len(shown):,} of {len(filtered):,} matching CVEs.")
         st.dataframe(styled_table(shown), hide_index=True, width="stretch", height=560, column_config=TABLE_COLUMNS)
         color_legend()
+        briefing_panel(filtered)
 
     # The submission file: always the first 500 of the FULL ranking, one column, filters ignored.
     submission = ranked.head(500)[["cve_id"]].to_csv(index=False)
@@ -2101,6 +2440,7 @@ elif page == "CVE Detail":
     st.html(f'<div class="ff-box"><h2>Why fix this next</h2><p>{body}</p></div>')
     vs_strip(row)
     how_model_sees(row)
+    fix_ticket_panel(row)
     ask_panel("cve", lambda: project_context() + "\n\n" + cve_context(row),
               f"e.g. Why is {row['cve_id']} ranked above its EPSS? What would an attacker gain?",
               ["Why is it ranked above its EPSS?", "What does an attacker gain?", "Which exploited CVEs does it resemble?"])
@@ -2127,7 +2467,7 @@ elif page == "CVE Detail":
     st.write(row["description"] or "No description.")
     st.markdown(f"[View {cve} on the NVD website ↗](https://nvd.nist.gov/vuln/detail/{cve})")
 
-else:
+elif page == "Methodology":
     st.title("Methodology")
     page_note("Methodology")
     st.markdown(
@@ -2198,6 +2538,12 @@ components, the scoreboard's `epss` / `exploitdb` / `metasploit` / `nuclei` / `p
 `known_exploited.csv` (≤ 2025-12-31) for labels. Full model card: `outputs/MODEL_CARD.md`.
 """
     )
+
+elif page == "Team":
+    team_page()
+
+elif page == "For the judges":
+    judges_page()
 
 footer()
 
