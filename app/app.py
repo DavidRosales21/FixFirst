@@ -1517,7 +1517,7 @@ def how_model_sees(row):
 
 # ---------------------------------------------------------------- Ask FixNext (Gemini)
 
-GEMINI_MODELS = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite"]
 
 
 def gemini_key():
@@ -1593,28 +1593,30 @@ def ask_gemini(question, context):
         from google.genai import types
     except Exception:
         return "The google-genai package isn't installed on this host."
-    client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=20_000))  # ms — never hang the page
-    last = None
+    client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=60_000))  # ms — Cloud → Google is slower than a laptop; never hang the page
+    errs = []
     prompt = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
     for model in GEMINI_MODELS:
         # Newer Flash models "think" before answering and that eats the output budget, so thinking is
         # turned off where the model allows it, and the budget is generous either way.
         configs = [
-            types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1500,
+            types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1024,
                                         thinking_config=types.ThinkingConfig(thinking_budget=0)),
-            types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1500),
+            types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1024),
         ]
-        for cfg in configs:
+        for i, cfg in enumerate(configs):
             try:
                 r = client.models.generate_content(model=model, contents=prompt, config=cfg)
                 text = (r.text or "").strip()
                 if text:
                     return text + f"\n\n*{model}*"
-            except Exception as e:  # try the next config / model name
-                last = e
+                fr = r.candidates[0].finish_reason if r.candidates else "no candidates"
+                errs.append(f"{model}#{i}: empty answer ({fr})")
+            except Exception as e:  # try the next config / model name, but say what happened
+                errs.append(f"{model}#{i}: {type(e).__name__} {str(e)[:150]}")
                 if "Timeout" in type(e).__name__ or "timed out" in str(e).lower():  # network problem: other models won't help
                     return f"Gemini didn't answer in time ({type(e).__name__}). Try again in a few seconds."
-    return f"Gemini didn't answer ({type(last).__name__ + ': ' + str(last)[:200] if last else 'no response'})."
+    return "Gemini didn't answer — " + " | ".join(errs)
 
 
 def ask_panel(key, context_fn, placeholder, examples):
