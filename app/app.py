@@ -652,20 +652,24 @@ html.ff-dark [data-testid="stPopoverBody"] [data-testid="stButtonGroup"] button[
 .ff-face.teal{box-shadow:0 0 0 3px var(--ff-teal)}.ff-face.violet{box-shadow:0 0 0 3px var(--ff-violet)}.ff-face.amber{box-shadow:0 0 0 3px var(--ff-amber)}
 .ff-face-txt{display:grid;place-items:center;font:700 20px/1 var(--ff-display);color:var(--ff-on-navy)}
 @media (max-width:760px){.ff-team-hero{grid-template-columns:1fr}}
-.ff-team{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:18px;margin:8px 0 20px}
-.ff-member{display:grid;grid-template-columns:150px 1fr;gap:22px;padding:24px;background:var(--ff-layer);border:1px solid var(--ff-line);border-radius:var(--ff-r);border-top:5px solid var(--ff-green)}
-.ff-member.teal{border-top-color:var(--ff-teal)}.ff-member.violet{border-top-color:var(--ff-violet)}.ff-member.amber{border-top-color:var(--ff-amber)}
-.ff-portrait{width:150px;height:150px;border-radius:22px;object-fit:cover;display:block}
-.ff-portrait-txt{display:grid;place-items:center;font:700 40px/1 var(--ff-display);color:var(--ff-navy);background:var(--ff-green)}
+.ff-team{display:grid;grid-template-columns:1fr;gap:14px;margin:8px 0 20px}
+.ff-member{display:grid;grid-template-columns:168px minmax(0,1fr) 300px;gap:28px;align-items:start;padding:26px 28px;background:var(--ff-layer);border:1px solid var(--ff-line);border-radius:var(--ff-r);border-left:6px solid var(--ff-green)}
+.ff-member.teal{border-left-color:var(--ff-teal)}.ff-member.violet{border-left-color:var(--ff-violet)}.ff-member.amber{border-left-color:var(--ff-amber)}
+.ff-portrait{width:168px;height:168px;border-radius:50%;object-fit:cover;display:block;box-shadow:0 0 0 4px var(--ff-layer),0 0 0 7px var(--ff-green)}
+.ff-member.teal .ff-portrait{box-shadow:0 0 0 4px var(--ff-layer),0 0 0 7px var(--ff-teal)}.ff-member.violet .ff-portrait{box-shadow:0 0 0 4px var(--ff-layer),0 0 0 7px var(--ff-violet)}.ff-member.amber .ff-portrait{box-shadow:0 0 0 4px var(--ff-layer),0 0 0 7px var(--ff-amber)}
+.ff-portrait-txt{display:grid;place-items:center;font:700 44px/1 var(--ff-display);color:var(--ff-navy);background:var(--ff-green)}
 .ff-member.teal .ff-portrait-txt{background:var(--ff-teal)}.ff-member.violet .ff-portrait-txt{background:var(--ff-violet);color:#fff}.ff-member.amber .ff-portrait-txt{background:var(--ff-amber)}
-.ff-member-body b{display:block;font-family:var(--ff-display);font-size:21px;font-weight:700;letter-spacing:-.01em}
-.ff-role-chip{display:inline-block;margin:6px 8px 0 0;padding:4px 10px;border-radius:12px;font:600 11px/1.4 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;background:var(--ff-green-bg);color:var(--ff-green-ink)}
+.ff-member-body{min-width:0}.ff-member-body b{display:block;font-family:var(--ff-display);font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.ff-member-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:10px 0 0}
+.ff-role-chip{display:inline-block;padding:5px 10px;border-radius:12px;font:600 11px/1.3 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;background:var(--ff-green-bg);color:var(--ff-green-ink)}
 .ff-member.teal .ff-role-chip{background:var(--ff-teal-bg);color:var(--ff-teal-ink)}.ff-member.violet .ff-role-chip{background:var(--ff-violet-bg);color:var(--ff-violet-ink)}.ff-member.amber .ff-role-chip{background:var(--ff-amber-bg);color:var(--ff-amber-ink)}
-.ff-member-program{display:inline-block;margin-top:6px;font-size:12px;color:var(--ff-muted)}
-.ff-member-about{margin:12px 0 12px;font-size:14px;line-height:1.55}
-.ff-member-did{padding:10px 14px;border-radius:var(--ff-r2);background:var(--ff-layer2,#F4F4F4);font-size:13px;line-height:1.5;color:var(--ff-muted)}
-.ff-member-did i{display:block;font:600 11px/1.4 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ff-ink);margin-bottom:3px;font-style:normal}
-@media (max-width:640px){.ff-member{grid-template-columns:1fr}.ff-portrait{width:110px;height:110px}}
+.ff-member-program{font-size:13px;color:var(--ff-muted)}
+.ff-member-about{margin:14px 0 0;font-size:15px;line-height:1.6;max-width:62em}
+.ff-member-did{padding:16px 18px;border-radius:var(--ff-r2);background:var(--ff-navy);color:var(--ff-on-navy-muted);font-size:13.5px;line-height:1.55}
+.ff-member-did i{display:block;font:600 11px/1.4 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--ff-green);margin-bottom:6px;font-style:normal}
+.ff-member.teal .ff-member-did i{color:var(--ff-teal)}.ff-member.violet .ff-member-did i{color:var(--ff-violet)}.ff-member.amber .ff-member-did i{color:var(--ff-amber)}
+@media (max-width:980px){.ff-member{grid-template-columns:120px minmax(0,1fr)}.ff-member-did{grid-column:1 / -1}.ff-portrait{width:120px;height:120px}}
+@media (max-width:560px){.ff-member{grid-template-columns:1fr}}
 .ff-judge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px;margin:18px 0}
 .ff-judge{display:block;padding:16px 18px;background:var(--ff-navy);color:var(--ff-on-navy) !important;text-decoration:none !important;border-radius:var(--ff-r2);border-left:4px solid var(--ff-green)}
 .ff-judge.teal{border-left-color:var(--ff-teal)}.ff-judge.violet{border-left-color:var(--ff-violet)}.ff-judge.amber{border-left-color:var(--ff-amber)}
@@ -1493,11 +1497,13 @@ TEAM = [
      "Set up the GitHub repo and Streamlit Community Cloud, kept fixnext.streamlit.app rebuilding from main, saved the Devpost draft before the 8 PM gate, and diagnosed the Gemini-on-Cloud bug on Sunday morning.",
      "David is a Computer Science student at Sheridan College and a passionate software developer from Colombia. He enjoys building practical technology solutions, exploring AI, cloud computing and software development. "
      "As the creator of StudIA Notes, he is driven by turning ideas into real-world applications. Always curious and eager to learn, he enjoys collaborating with others and tackling challenging problems through technology.", "teal"),
-    ("Calvin Aremu", "Computer Science", "IBM Granite · video",
+    ("Calvin Aremu", "Computer Science — Cloud Computing", "IBM Granite · video",
      "Ran granite-embedding on 180,308 CVE descriptions on Colab, generated the Granite rationales for the top 100, and voiced and recorded the demo video.",
-     "", "violet"),
-    ("Antesh Sharma", "Computer Science", "Words · judges' page",
-     "Shaped the note to the judges and kept the team honest about what a judge actually wants to hear.",
+     "Calvin is a Computer Science student specializing in Cloud Computing at Sheridan College, with AI and automation experience at Vodafone Ireland. "
+     "He enjoys building practical solutions using cloud technologies and AI.", "violet"),
+    ("Antesh Sharma", "Computer Science", "QA · release checks · judges' page",
+     "Tested every dashboard release end to end before it went live — filters, the CVE pages, both hosts, light and dark — reported what broke, "
+     "and shaped the note to the judges so it says what a judge actually wants to hear.",
      "Computer Science student and developer passionate about cloud computing, software architecture, and building practical digital solutions. "
      "He enjoys bridging the gap between solid back-end engineering and clean, intuitive user interfaces that solve real-world problems.", "amber"),
 ]
@@ -1534,9 +1540,9 @@ def team_page():
         about_html = f'<p class="ff-member-about">{esc(about)}</p>' if about else '<p class="ff-member-about ff-pending">Bio on its way.</p>'
         cards.append(
             f'<div class="ff-member {tone}">{portrait}'
-            f'<div class="ff-member-body"><b>{esc(name)}</b><span class="ff-role-chip">{esc(role)}</span>'
-            f'<span class="ff-member-program">{esc(program)}</span>{about_html}'
-            f'<div class="ff-member-did"><i>This weekend</i>{esc(did)}</div></div></div>')
+            f'<div class="ff-member-body"><b>{esc(name)}</b><div class="ff-member-meta"><span class="ff-role-chip">{esc(role)}</span>'
+            f'<span class="ff-member-program">{esc(program)}</span></div>{about_html}</div>'
+            f'<div class="ff-member-did"><i>This weekend</i>{esc(did)}</div></div>')
     st.html('<div class="ff-team">' + "".join(cards) + '</div>')
     st.html('<div class="ff-box"><h2>How we worked</h2>'
             '<p>One lead with a plan and a message protocol (every task numbered, every result reviewed), two builders, one writer. '
@@ -1684,7 +1690,30 @@ def how_model_sees(row):
 
 # ---------------------------------------------------------------- Ask FixNext (Gemini)
 
-GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite"]
+# Stable Flash first (fast, least congested), then the newest Flash, then Flash-Lite. Quota is per model,
+# so a 429 on one still leaves the next one. Names from aistudio.google.com/docs/models (Nov 2026):
+# gemini-3.8-flash-lite does not exist (404) and the 2.x Flash models are retired.
+GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"]
+SKIP_TO_NEXT_MODEL = (404, 429, 500, 503, 504)   # unknown model / quota / overloaded: the other config won't help
+
+
+def thinking_minimal(types):
+    """Gemini 3.x thinks before answering, which is slow and eats the output budget; MINIMAL keeps it short.
+    (thinking_budget=0 was the 2.x knob.)"""
+    return types.ThinkingConfig(thinking_level=types.ThinkingLevel.MINIMAL)
+
+
+def with_asked_cves(question, context):
+    """Add the details of any CVE the question names, so "Why is CVE-X ranked #3?" gets a real answer on
+    every page, not only on CVE Detail with that CVE selected."""
+    extra = []
+    for cid in dict.fromkeys(re.findall(r"CVE-\d{4}-\d{4,7}", question.upper())):
+        if f"Selected CVE: {cid} —" in context:
+            continue
+        hit = ranked[ranked["cve_id"] == cid]
+        extra.append(cve_context(hit.iloc[0]).replace("Selected CVE:", "CVE asked about:", 1) if len(hit)
+                     else f"{cid} is not among the {len(ranked):,} CVEs this dashboard holds, so FixNext has no details on it here.")
+    return "\n\n".join([context] + extra)
 
 
 def gemini_key():
@@ -1762,13 +1791,13 @@ def ask_gemini(question, context):
         return "The google-genai package isn't installed on this host."
     client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=60_000))  # ms — Cloud → Google is slower than a laptop; never hang the page
     errs = []
-    prompt = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
+    prompt = f"CONTEXT:\n{with_asked_cves(question, context)}\n\nQUESTION: {question}"
     for model in GEMINI_MODELS:
         # Newer Flash models "think" before answering and that eats the output budget, so thinking is
         # turned off where the model allows it, and the budget is generous either way.
         configs = [
             types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1024,
-                                        thinking_config=types.ThinkingConfig(thinking_budget=0)),
+                                        thinking_config=thinking_minimal(types)),
             types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1024),
         ]
         for i, cfg in enumerate(configs):
@@ -1783,6 +1812,8 @@ def ask_gemini(question, context):
                 errs.append(f"{model}#{i}: {type(e).__name__} {str(e)[:150]}")
                 if "Timeout" in type(e).__name__ or "timed out" in str(e).lower():  # network problem: other models won't help
                     return f"Gemini didn't answer in time ({type(e).__name__}). Try again in a few seconds."
+                if getattr(e, "code", None) in SKIP_TO_NEXT_MODEL:
+                    break
     return "Gemini didn't answer — " + " | ".join(errs)
 
 
@@ -1807,7 +1838,7 @@ def ask_gemini_json(instruction, context, schema):
                 kw = dict(system_instruction=rules, temperature=0.2, max_output_tokens=2000,
                           response_mime_type="application/json", response_schema=schema)
                 if thinking:
-                    kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                    kw["thinking_config"] = thinking_minimal(types)
                 r = client.models.generate_content(model=model, contents=prompt, config=types.GenerateContentConfig(**kw))
                 text = (r.text or "").strip()
                 if text:
@@ -1818,6 +1849,8 @@ def ask_gemini_json(instruction, context, schema):
                 errs.append(f"{model}: {type(e).__name__} {str(e)[:150]}")
                 if "Timeout" in type(e).__name__ or "timed out" in str(e).lower():
                     return None, f"Gemini didn't answer in time ({type(e).__name__}). Try again in a few seconds."
+                if getattr(e, "code", None) in SKIP_TO_NEXT_MODEL:
+                    break
     return None, "Gemini didn't answer — " + " | ".join(errs)
 
 
