@@ -865,6 +865,121 @@ def how_model_sees(row):
             + "".join(f"<li><i>{esc(tag)}</i><span>{esc(text)}</span></li>" for tag, text in items) + "</ul>")
 
 
+# ---------------------------------------------------------------- Ask FixNext (Gemini)
+
+GEMINI_MODELS = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+
+
+def gemini_key():
+    """The key lives in Streamlit Cloud secrets or an environment variable — never in the repo.
+    fixnext.select runs in the browser and has no secrets, so the feature hides itself there."""
+    try:
+        if "GEMINI_API_KEY" in st.secrets:
+            return str(st.secrets["GEMINI_API_KEY"])
+    except Exception:
+        pass
+    return os.environ.get("GEMINI_API_KEY", "")
+
+
+def project_context():
+    """Everything Gemini is allowed to know: our own numbers, nothing else."""
+    lines = ["FixNext — Sheridan Datathon 2026, IBM track. A model that ranks the 72,670 CVEs published Jan–Sep 2026 "
+             "by how likely attackers are to actually use them (defined as later being added to CISA KEV).",
+             f"Dashboard shows the top {len(ranked):,} of the 72,670."]
+    s_bt = backtest_summary(backtest)
+    lines.append("Back-test (train on 2024, predict Jan–Jun 2025, %d later-exploited CVEs). Hits in top 100 / top 500: " % s_bt["positives"]
+                 + "; ".join(f"{m}: {int(a)}/{int(b)}" for m, a, b in zip(backtest["method"], backtest["hits_at_100"], backtest["hits_at_500"])))
+    if profile:
+        lines.append(f"Top-500 profile: {profile['pct_epss_under_1pct_top500']:.0f}% have EPSS under 1% (vs {profile['pct_epss_under_1pct_all']:.0f}% of all CVEs); "
+                     f"{profile['pct_exploit_code_top500']:.0f}% have public exploit code (vs {profile['pct_exploit_code_all']:.1f}%); "
+                     f"{profile['pct_critical_top500']:.0f}% are CVSS Critical (vs {profile['pct_critical_all']:.0f}%); median EPSS {profile['median_epss_top500']}. "
+                     "Top weakness types: " + "; ".join(f"{c['name']} {c['pct_top500']:.0f}% (vs {c['pct_all']:.1f}% overall)" for c in profile.get("top_cwes_top500", [])))
+    top500 = ranked[ranked["rank"] <= 500]
+    vend = top500["vendor_guess"].value_counts()
+    lines.append("Top-500 vendors (keyword in description): " + ", ".join(f"{k} {v}" for k, v in vend.head(12).items()))
+    lines.append("Top 10 ranked CVEs: " + "; ".join(f"#{int(r['rank'])} {r['cve_id']} ({r['vendor_guess']}, {r['cwe_name']}, EPSS {fmt(r['epss'])})" for _, r in ranked.head(10).iterrows()))
+    if catches is not None:
+        only = catches[catches["bucket"] == "FixNext only"]
+        lines.append("2025 exploited CVEs FixNext caught in its top 500 that the exploit-code-then-EPSS baseline missed: "
+                     + "; ".join(f"{r['cve_id']} {r['kev_name']} (FixNext rank {int(r['rank_fixnext'])}, EPSS rank {int(r['rank_epss'])}, EPSS {fmt(r['epss'], '{:.3f}')})" for _, r in only.iterrows())
+                     + f". {int((catches['bucket'] == 'both').sum())} caught by both; 18 missed by every ranking.")
+    lines.append("Model: LightGBM on assigner, CWE, CVSS vector, exploit signals at snapshot month, TF-IDF text, and IBM Granite "
+                 "nearest-known-exploited-CVE similarity (granite-embedding-small-english-r2; #4 feature), blended with the exploit-code-then-EPSS "
+                 "ranking. Rationales by granite-3.3-2b-instruct. Not used (leakage): nvd_status, n_references, n_affected_cpes, last_modified, "
+                 "cvss3_source, references.csv, affected_products.csv, live 2026 KEV. Five discovery findings: 15 issuers = 72% of exploited CVEs; "
+                 "98.7% of CRITICAL CVEs never exploited; XSS 15 of 25,755 exploited, WordPress 0 of 13,542; median 28 days publish→KEV "
+                 "(Apple 2, Chrome 4, Microsoft 6, Apache 113); words vpn/firewall/gateway/auth bypass/RCE raise odds, XSS/plugin/wordpress near zero.")
+    return "\n".join(lines)
+
+
+def cve_context(row):
+    sims = "; ".join(f"{c} (similarity {s})" for c, s in similar_cves(row)) or "none"
+    flags = ", ".join(label for col, label in FLAGS.items() if row[col] == 1) or "none"
+    return (f"Selected CVE: {row['cve_id']} — FixNext rank {int(row['rank'])} of 72,670, score {fmt(row['score'])}. "
+            f"EPSS {fmt(row['epss'], '{:.3f}')} (EPSS-first rank {'#' + format(int(row['epss_rank']), ',') if not is_blank(row.get('epss_rank')) else 'n/a'}); "
+            f"exploit-code-then-EPSS rank {'#' + format(int(row['flags_rank']), ',') if not is_blank(row.get('flags_rank')) else 'n/a'}; "
+            f"CVSS {fmt(row['cvss3_score'], '{:.1f}')} {row['cvss3_severity'] or ''} (CVSS rank {'#' + format(int(row['cvss_rank']), ',') if not is_blank(row.get('cvss_rank')) else 'n/a'}). "
+            f"Vendor keyword: {row['vendor_guess']}. Weakness: {row['cwe_name']} ({row['cwe_primary']}). Issuer: {row['assigner']}. "
+            f"Attack vector: {row['attack_vector'] or 'n/a'}. Public exploit code: {flags}. "
+            f"Issuer historical exploitation lift: {fmt(row.get('assigner_lift'), '{:.1f}')}×; weakness lift: {fmt(row.get('cwe_lift'), '{:.1f}')}×. "
+            f"Looks like these exploited CVEs: {sims}. Granite rationale: {row['rationale'] or 'none'}. "
+            f"Description: {row['description']}")
+
+
+SYSTEM_RULES = (
+    "You are 'Ask FixNext', the assistant inside the FixNext dashboard at a datathon. Answer the question using ONLY the "
+    "context below — our model's own numbers and findings. Be concrete and short (2–5 sentences, plain words). If the answer "
+    "is not in the context, say 'That isn't in FixNext's data' and suggest where in the dashboard to look (Overview, Fix-Next List, "
+    "CVE Detail, Methodology). Never claim a CVE is being actively exploited unless the context says it is on KEV. Never invent numbers."
+)
+
+
+def ask_gemini(question, context):
+    key = gemini_key()
+    if not key:
+        return None
+    try:
+        from google import genai
+        from google.genai import types
+    except Exception:
+        return "The google-genai package isn't installed on this host."
+    client = genai.Client(api_key=key)
+    last = None
+    for model in GEMINI_MODELS:
+        try:
+            r = client.models.generate_content(
+                model=model,
+                contents=f"CONTEXT:\n{context}\n\nQUESTION: {question}",
+                config=types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=400),
+            )
+            text = (r.text or "").strip()
+            if text:
+                return text + f"\n\n*{model}*"
+        except Exception as e:  # try the next model name
+            last = e
+    return f"Gemini didn't answer ({type(last).__name__ if last else 'no response'})."
+
+
+def ask_panel(key, context_fn, placeholder, examples):
+    """A question box backed by Gemini. Hidden (with a short note) when no key is configured."""
+    st.html('<h2 class="ff-h2" style="margin:18px 0 2px">Ask FixNext</h2>'
+            '<p class="ff-sub">Questions answered by Google Gemini from FixNext\'s own numbers — nothing outside the project.</p>')
+    if not gemini_key():
+        st.caption("Ask FixNext runs on the hosted app (fixnext.streamlit.app) and locally with GEMINI_API_KEY set; "
+                   "the in-browser version at fixnext.select has no API key.")
+        return
+    cols = st.columns(len(examples))
+    for col, ex in zip(cols, examples):
+        if col.button(ex, key=f"{key}_ex_{abs(hash(ex)) % 10_000}", width="stretch"):
+            st.session_state[f"{key}_q"] = ex
+    q = st.text_input("Your question", key=f"{key}_q", placeholder=placeholder, label_visibility="collapsed")
+    if q:
+        with st.spinner("Asking Gemini…"):
+            answer = ask_gemini(q, context_fn())
+        if answer:
+            st.markdown(answer)
+
+
 def cve_card(row, eyebrow, with_signals=True, with_similar=False):
     """The gauge card: rank, CVE id, score ring, reasons and (optionally) the signals line
     and the "looks like these exploited CVEs" line (hidden when there are none)."""
@@ -1174,6 +1289,10 @@ if page == "Overview":
         with st.container(key="ffcard_catches"):
             catches_section(catches)
 
+        with st.container(key="ffask_overview"):
+            ask_panel("ask_ov", project_context, "e.g. Why does FixNext beat EPSS? Which vendors dominate the top 500?",
+                      ["Why does FixNext beat EPSS?", "What did it catch that EPSS missed?", "What does the model refuse to use?"])
+
         # Full width: weakness names are long, a third of the page cuts them off.
         with st.container(key="ffcard_cwe"):
             chart_heading("Top weakness types in the top 500", "Top 10, names shortened to 40 characters")
@@ -1225,6 +1344,9 @@ elif page == "CVE Detail":
     st.html(f'<div class="ff-box"><h2>Why fix this next</h2><p>{body}</p></div>')
     vs_strip(row)
     how_model_sees(row)
+    ask_panel("ask_cve", lambda: project_context() + "\n\n" + cve_context(row),
+              f"e.g. Why is {row['cve_id']} ranked above its EPSS? What would an attacker gain?",
+              ["Why is it ranked above its EPSS?", "What does an attacker gain?", "Which exploited CVEs does it resemble?"])
 
     severity = "" if is_blank(row["cvss3_severity"]) else str(row["cvss3_severity"]).upper()
     cvss_text = NO if is_blank(row["cvss3_score"]) else f"{row['cvss3_score']:.1f} {severity.title()}".strip()
