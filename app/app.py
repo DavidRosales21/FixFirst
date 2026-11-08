@@ -17,6 +17,7 @@ import streamlit.components.v1 as components
 import math
 import random
 import re
+import time
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -2038,6 +2039,20 @@ def _chat_quick(q):
     st.session_state["ffchat_pending"] = q
 
 
+@st.fragment(run_every=2)
+def _chat_wait_for_answer():
+    """A click while Gemini was thinking starts a new run at once; the old run keeps waiting on Gemini and stores
+    the answer in ffchat_msgs, but can no longer draw it. Check every 2 s and redraw once it has landed."""
+    msgs = st.session_state.get("ffchat_msgs", [])
+    if not msgs or msgs[-1][0] != "user":
+        st.rerun()   # the answer arrived: redraw the whole app so the chat shows it
+    elif time.time() - st.session_state.get("ffchat_asked_at", 0) > 120:
+        msgs.append(("bot", "That answer got lost on the way. Please ask again.", ""))
+        st.rerun()
+    else:
+        st.html('<p class="ff-chat-empty">Asking Gemini…</p>')
+
+
 def floating_chat(current_page, context_fn):
     """A small chat pinned to the bottom-right corner on every page. Hidden entirely when no key is set."""
     if not gemini_key():
@@ -2066,6 +2081,7 @@ def floating_chat(current_page, context_fn):
         pending = st.session_state.pop("ffchat_pending", None)
         if pending:
             msgs.append(("user", pending, ""))
+            st.session_state["ffchat_asked_at"] = time.time()
             with st.spinner("Asking Gemini…"):
                 answer = ask_gemini(pending, context_fn()) or "No answer."
                 # Store the answer BEFORE the spinner closes. Closing it is a Streamlit call, and if the person
@@ -2084,6 +2100,8 @@ def floating_chat(current_page, context_fn):
                 for role, text, model in msgs
             )
             st.html(f'<div class="ff-chat-log">{log}</div>')
+            if msgs[-1][0] == "user":   # an answer is still on its way from a run a click interrupted
+                _chat_wait_for_answer()
         else:
             st.html('<p class="ff-chat-empty">Ask anything about the ranking, the model, or the CVE you\'re looking at. '
                     'Answers use only FixNext\'s own numbers.</p>')
