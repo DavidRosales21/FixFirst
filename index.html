@@ -104,6 +104,21 @@
         if (!ready()) note.textContent = "If nothing shows up, reload the page.";
       }, 90000);
 
+      const files = {
+        "app.py": { url: "app/app.py" },
+        "sample_ranked_2026.csv": { url: "app/sample_ranked_2026.csv" },
+        "sample_backtest.csv": { url: "app/sample_backtest.csv" },
+        ".streamlit/config.toml": { url: "app/.streamlit/config.toml" },
+      };
+      // The model's drop-in files: copied into app/ on this branch, they replace the sample
+      // (app.py prefers them when present). Until then these checks just come back 404.
+      for (const name of ["ranked_light.csv", "backtest.csv"]) {
+        try {
+          const res = await fetch(`app/${name}`, { method: "HEAD", cache: "no-store" });
+          if (res.ok) files[name] = { url: `app/${name}` };
+        } catch (e) {}
+      }
+
       try {
         mount(
           {
@@ -112,12 +127,7 @@
             // The FixNext loading screen shows progress; stlite's own toasts would linger over the app.
             disableProgressToasts: true,
             disableModuleAutoLoadToasts: true,
-            files: {
-              "app.py": { url: "app/app.py" },
-              "sample_ranked_2026.csv": { url: "app/sample_ranked_2026.csv" },
-              "sample_backtest.csv": { url: "app/sample_backtest.csv" },
-              ".streamlit/config.toml": { url: "app/.streamlit/config.toml" },
-            },
+            files,
           },
           document.getElementById("root"),
         );

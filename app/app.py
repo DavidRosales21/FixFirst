@@ -2,15 +2,17 @@
 #
 # Run from the repo root:   streamlit run app/app.py
 #
-# Reads only the two CSVs of the data contract (app/sample_ranked_2026.csv and
-# app/sample_backtest.csv). Point it at the real model output with the
-# FIXNEXT_RANKED / FIXNEXT_BACKTEST environment variables (the older FIXFIRST_* names
-# from the task doc still work); no code changes.
+# Reads only the two CSVs of the data contract. Which ones, first match wins:
+#   1. the FIXNEXT_RANKED / FIXNEXT_BACKTEST environment variables (the older FIXFIRST_*
+#      names from the task doc still work), e.g. the full ranking for the local demo;
+#   2. app/ranked_light.csv and app/backtest.csv, the model's drop-in files, when present;
+#   3. app/sample_ranked_2026.csv and app/sample_backtest.csv (placeholder scores).
 # Theme (light / dark / system) and fonts live in app/.streamlit/config.toml and app/static/.
 
 import html
 import os
 import random
+import re
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -19,11 +21,19 @@ import streamlit as st
 st.set_page_config(page_title="FixNext — Before the Breach", page_icon="🛡️", layout="wide")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = HERE  # the sample CSVs sit next to this file
+DATA_DIR = HERE  # the CSVs sit next to this file
+
+
+def first_existing(*names):
+    """The first of these files in DATA_DIR that exists (the last one if none do)."""
+    paths = [os.path.join(DATA_DIR, n) for n in names]
+    return next((p for p in paths if os.path.exists(p)), paths[-1])
+
+
 RANKED_PATH = (os.environ.get("FIXNEXT_RANKED") or os.environ.get("FIXFIRST_RANKED")
-               or os.path.join(DATA_DIR, "sample_ranked_2026.csv"))
+               or first_existing("ranked_light.csv", "sample_ranked_2026.csv"))
 BACKTEST_PATH = (os.environ.get("FIXNEXT_BACKTEST") or os.environ.get("FIXFIRST_BACKTEST")
-                 or os.path.join(DATA_DIR, "sample_backtest.csv"))
+                 or first_existing("backtest.csv", "sample_backtest.csv"))
 USING_SAMPLE = os.path.basename(RANKED_PATH).startswith("sample_")
 
 PAGES = ["Overview", "Fix-Next List", "CVE Detail", "Methodology"]
@@ -60,6 +70,8 @@ def load_ranked(path):
     df = pd.read_csv(path, dtype={"cve_id": str, "rationale": str, "top_reasons": str, "description": str})
     for col in ["rationale", "top_reasons", "description", "assigner"]:
         df[col] = df[col].fillna("")
+    # Optional column (Granite neighbours): "CVE-2024-1234 (0.93); CVE-2025-…". Missing = empty.
+    df["similar_cves"] = df["similar_cves"].fillna("").astype(str) if "similar_cves" in df else ""
     df["vendor_guess"] = df["vendor_guess"].fillna("other")
     df["cwe_name"] = df["cwe_name"].fillna("Unknown")
     for col in ["rank", "score", "cvss3_score", "epss"]:
@@ -123,6 +135,18 @@ def reason_kind(text):
 
 def reasons(row):
     return [r.strip() for r in str(row["top_reasons"]).split(";") if r.strip()]
+
+
+def similar_cves(row):
+    """[(cve_id, similarity)] from 'CVE-2024-1234 (0.93); CVE-2025-…'. Empty or missing -> []."""
+    out = []
+    for part in str(row.get("similar_cves", "") or "").split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        m = re.match(r"(CVE-\d{4}-\d+)\s*(?:\(\s*([^)]*?)\s*\))?", part, re.I)
+        out.append((m.group(1).upper(), m.group(2) or "") if m else (part, ""))
+    return out
 
 
 def main_reason(row):
@@ -241,6 +265,9 @@ CSS = """
 .ff-pill.epss{background:rgba(165,110,255,.18);color:color-mix(in srgb,#A56EFF 72%,currentColor)}
 .ff-pill.exploit{background:rgba(238,83,150,.18);color:color-mix(in srgb,#EE5396 72%,currentColor)}
 .ff-pill.vendor{background:rgba(0,157,154,.18);color:color-mix(in srgb,#009D9A 75%,currentColor)}
+.ff-similar{margin:12px 0 0;font-size:13px;line-height:2}
+.ff-sim{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 8px;margin-right:6px;background:var(--ff-line);white-space:nowrap}
+.ff-sim i{font-style:normal;color:var(--ff-muted);margin-left:2px}
 .ff-signals{display:flex;flex-wrap:wrap;gap:6px 8px;margin-top:14px;font-size:13px;color:var(--ff-muted);align-items:center}
 .ff-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;font-size:12px;color:inherit;background:var(--ff-layer);white-space:nowrap}
 .ff-tag i{display:inline-block;width:8px;height:8px;flex:0 0 auto}
@@ -257,14 +284,27 @@ CSS = """
 .st-key-ffheader{border-bottom:1px solid var(--ff-line);padding-bottom:4px}
 .st-key-ffheader [data-testid="stHorizontalBlock"]{flex-wrap:wrap;row-gap:4px;align-items:center}
 .st-key-ffheader [data-testid="stColumn"]{width:auto !important;min-width:0 !important}
-.st-key-ffheader [data-testid="stColumn"]:nth-child(1),.st-key-ffheader [data-testid="stColumn"]:nth-child(3){flex:0 0 auto !important}
-.st-key-ffheader [data-testid="stColumn"]:nth-child(2){flex:1 1 320px !important}
+.st-key-ffheader [data-testid="stColumn"]{flex:0 0 auto !important}
+.st-key-ffheader [data-testid="stColumn"]:nth-child(2){flex:1 1 auto !important;min-width:max-content !important}
+.st-key-ffheader [data-testid="stColumn"]:nth-child(3){margin-left:auto}
+.st-key-fftools{flex-wrap:nowrap !important;width:auto !important}
+.st-key-fftools > div{width:auto !important;flex:0 0 auto !important}
+
+/* Filters: an obvious button in the header, opening a wide pop-up panel with an X */
+.st-key-fffilters button{min-height:40px;padding:0 16px !important;font-weight:600;border:1px solid #4589FF !important;border-radius:0 !important}
+.st-key-fffilters button [data-testid="stIconMaterial"]{font-size:22px}
+[data-testid="stPopoverBody"]{width:min(720px,calc(100vw - 32px)) !important;max-width:calc(100vw - 32px) !important;border-radius:0 !important}
+.ff-pop-head{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:16px;
+  border-bottom:1px solid var(--ff-line);padding-bottom:8px;margin-bottom:4px}
+.ff-x{display:grid;place-items:center;width:40px;height:40px;padding:0;background:transparent;border:0;color:inherit;cursor:pointer}
+.ff-x:focus-visible{outline:2px solid #4589FF;outline-offset:-2px}
+@media (hover:hover){.ff-x:hover{background:var(--ff-layer)}}
 .ff-brand{display:flex;flex-direction:column;line-height:1.25;padding-right:12px}
 .ff-brand b{font-size:20px;font-weight:600;letter-spacing:.2px}
 .ff-brand span{font-size:12px;color:var(--ff-muted);white-space:nowrap}
 .st-key-page [data-testid="stButtonGroup"]{gap:0;flex-wrap:wrap}
 .st-key-page button{background:transparent !important;border:0 !important;border-radius:0 !important;min-height:44px;
-  padding:0 14px !important;color:var(--ff-muted) !important;box-shadow:inset 0 -2px 0 transparent !important}
+  padding:0 12px !important;color:var(--ff-muted) !important;box-shadow:inset 0 -2px 0 transparent !important}
 .st-key-page button[aria-checked="true"]{color:inherit !important;font-weight:600;box-shadow:inset 0 -3px 0 #4589FF !important}
 .st-key-page button:focus-visible{outline:2px solid #4589FF;outline-offset:-2px}
 @media (hover:hover){.st-key-page button:hover{background:var(--ff-layer) !important;color:inherit !important}}
@@ -415,6 +455,14 @@ UI_SCRIPT = """
     })();
   }
   doc.addEventListener('click', function (e) {
+    var closer = e.target && e.target.closest ? e.target.closest('[data-ff-close]') : null;
+    if (closer) {
+      // The X of a popup panel: same as clicking its button again (or pressing Escape).
+      var open = q('.st-key-fffilters button[aria-expanded="true"], [data-testid="stPopover"] button[aria-expanded="true"]');
+      if (open) open.click();
+      else doc.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      return;
+    }
     var t = e.target && e.target.closest ? e.target.closest('[data-ff-theme],[data-ff-action]') : null;
     if (!t) return;
     var theme = t.getAttribute('data-ff-theme'), action = t.getAttribute('data-ff-action');
@@ -454,7 +502,8 @@ def remember_page():
 
 
 def header():
-    """Project name, page tabs, theme switch and the side rail of tools. Returns the open page."""
+    """Project name, page tabs, a slot for the Filters button, the theme switch and the side rail
+    of tools. Returns the open page and the slot where the Filters button goes."""
     st.markdown(CSS, unsafe_allow_html=True)
     st.session_state.setdefault("page", PAGES[0])
     tag = "Sample data, placeholder scores" if USING_SAMPLE else "Before the Breach"
@@ -470,12 +519,15 @@ def header():
         brand, nav, tools = st.columns([1, 3, 1], vertical_alignment="center", gap="small")
         brand.html(f'<div class="ff-brand"><b>FixNext</b><span>{esc(tag)}</span></div>')
         nav.segmented_control("Page", PAGES, key="page", label_visibility="collapsed", on_change=remember_page)
-        tools.html(
-            f'<div class="ff-theme" role="group" aria-label="Theme">{theme}</div>'
-            f'<nav class="ff-rail" aria-label="App tools">{rail}</nav>' + UI_SCRIPT,
-            unsafe_allow_javascript=True,
-        )
-    return st.session_state.get("page") or PAGES[0]
+        # Filters button + theme switch stay together as one group (and wrap together).
+        with tools.container(horizontal=True, key="fftools", gap="small", vertical_alignment="center"):
+            filters_slot = st.container()
+            st.html(
+                f'<div class="ff-theme" role="group" aria-label="Theme">{theme}</div>'
+                f'<nav class="ff-rail" aria-label="App tools">{rail}</nav>' + UI_SCRIPT,
+                unsafe_allow_javascript=True,
+            )
+    return st.session_state.get("page") or PAGES[0], filters_slot
 
 
 def footer():
@@ -560,8 +612,9 @@ def hero(total):
     )
 
 
-def cve_card(row, eyebrow, with_signals=True):
-    """The gauge card: rank, CVE id, score ring, reasons and (optionally) the signals line."""
+def cve_card(row, eyebrow, with_signals=True, with_similar=False):
+    """The gauge card: rank, CVE id, score ring, reasons and (optionally) the signals line
+    and the "looks like these exploited CVEs" line (hidden when there are none)."""
     score = 0.0 if is_blank(row["score"]) else float(row["score"])
     meta = " · ".join(x for x in [cwe_label(row["cwe_name"], row["cwe_primary"]), row["assigner"]] if x)
     pills = "".join(f'<span class="ff-pill {reason_kind(r)}">{esc(r)}</span>' for r in reasons(row))
@@ -571,6 +624,12 @@ def cve_card(row, eyebrow, with_signals=True):
         for col, label in FLAGS.items()
     )
     signals = f'<div class="ff-signals">{severity_html(row)}{flags}</div>' if with_signals else ""
+    sims = similar_cves(row) if with_similar else []
+    similar = (
+        '<p class="ff-similar"><span class="ff-muted">Looks like these exploited CVEs:</span> '
+        + "".join(f'<span class="ff-sim">{esc(c)}{f" <i>{esc(s)}</i>" if s else ""}</span>' for c, s in sims)
+        + "</p>"
+    ) if sims else ""
     st.html(
         '<section class="ff-card">'
         '<div class="ff-gauge-wrap"><span class="ff-ring" aria-hidden="true"></span>'
@@ -579,7 +638,7 @@ def cve_card(row, eyebrow, with_signals=True):
         f'<div class="ff-gauge-num" aria-hidden="true"><b>{score:.2f}</b><span>model score</span></div></div>'
         f'<div class="ff-card-body"><p class="ff-eyebrow">{esc(eyebrow)}</p>'
         f'<p class="ff-cve">{esc(row["cve_id"])}</p><p class="ff-card-meta">{esc(meta)}</p>'
-        f'<div class="ff-pills">{pills}</div>{signals}</div></section>'
+        f'<div class="ff-pills">{pills}</div>{similar}{signals}</div></section>'
     )
 
 
@@ -684,46 +743,54 @@ TABLE_COLUMNS = {
 }
 
 
-# ---------------------------------------------------------------- sidebar
+# ---------------------------------------------------------------- filters
 
-def sidebar_filters(df):
-    """Global filters for Overview and the list. Nothing picked means 'all'.
-    Short lists are one-tap chips; long lists are searchable, most common first, with counts."""
+def filter_panel(df):
+    """The Filters button in the header and its pop-up panel (closes with X or a click outside).
+    Nothing picked means 'all'. Short lists are one-tap chips; long lists are searchable,
+    most common first, with counts."""
     active = sum(1 for k in FILTER_KEYS if st.session_state.get(k))
-    st.sidebar.markdown("### Filters" + (f" · {active} on" if active else ""))
+    label = f"Filters · {active}" if active else "Filters"
+    with st.popover(label, icon=":material/filter_alt:", type="primary" if active else "secondary", key="fffilters"):
+        st.html(
+            '<div class="ff-pop-head"><div><b>Filters</b>'
+            '<span class="ff-muted"> · for Overview and Fix-Next List</span></div>'
+            f'<button type="button" class="ff-x" data-ff-close aria-label="Close filters">{icon("close")}</button></div>'
+        )
+        query = st.text_input("Search", key="f_query", placeholder="CVE id or keyword", icon=":material/search:")
 
-    query = st.sidebar.text_input("Search", key="f_query", placeholder="CVE id or keyword", icon=":material/search:")
+        sev_values = [s for s in SEVERITY_ORDER if s in set(df["cvss3_severity"].dropna())]
+        sev_values += sorted(set(df["cvss3_severity"].dropna()) - set(sev_values))
+        left, right = st.columns(2, gap="medium")
+        sevs = left.pills(
+            "Severity", sev_values, selection_mode="multi", key="f_sev",
+            format_func=lambda s: f":{SEV_MD.get(s, 'gray')}[●] {str(s).title()}",
+        )
+        right.markdown("**Exploit code**")
+        only_exploit = right.toggle("Only CVEs with public exploit code", key="f_exploit")
 
-    sev_values = [s for s in SEVERITY_ORDER if s in set(df["cvss3_severity"].dropna())]
-    sev_values += sorted(set(df["cvss3_severity"].dropna()) - set(sev_values))
-    sevs = st.sidebar.pills(
-        "Severity", sev_values, selection_mode="multi", key="f_sev",
-        format_func=lambda s: f":{SEV_MD.get(s, 'gray')}[●] {str(s).title()}",
-    )
-    only_exploit = st.sidebar.toggle("Only CVEs with public exploit code", key="f_exploit")
+        vendor_counts = df["vendor_guess"].value_counts()
+        vendor_options = [v for v in vendor_counts.index if v != "other"] + (["other"] if "other" in vendor_counts else [])
+        cwe_counts = df["cwe_name"].value_counts()
+        cwe_ids = df.drop_duplicates("cwe_name").set_index("cwe_name")["cwe_primary"]
+        left, right = st.columns(2, gap="medium")
+        vendors = left.multiselect(
+            "Vendor", vendor_options, key="f_vendor", placeholder="All vendors",
+            format_func=lambda v: f"{v} ({vendor_counts[v]:,})",
+        )
+        cwes = right.multiselect(
+            "Weakness type", cwe_counts.index.tolist(), key="f_cwe", placeholder="All weakness types",
+            format_func=lambda n: f"{cwe_label(n, cwe_ids.get(n), limit=48)} ({cwe_counts[n]:,})",
+        )
 
-    vendor_counts = df["vendor_guess"].value_counts()
-    vendor_options = [v for v in vendor_counts.index if v != "other"] + (["other"] if "other" in vendor_counts else [])
-    vendors = st.sidebar.multiselect(
-        "Vendor", vendor_options, key="f_vendor", placeholder="All vendors",
-        format_func=lambda v: f"{v} ({vendor_counts[v]:,})",
-    )
+        month_values = sorted(df["snapshot_month"].dropna().unique())
+        months = st.pills(
+            "Snapshot month", month_values, selection_mode="multi", key="f_month",
+            format_func=lambda m: month_label(m)[:3],
+        )
 
-    cwe_counts = df["cwe_name"].value_counts()
-    cwe_ids = df.drop_duplicates("cwe_name").set_index("cwe_name")["cwe_primary"]
-    cwes = st.sidebar.multiselect(
-        "Weakness type", cwe_counts.index.tolist(), key="f_cwe", placeholder="All weakness types",
-        format_func=lambda n: f"{cwe_label(n, cwe_ids.get(n), limit=48)} ({cwe_counts[n]:,})",
-    )
-
-    month_values = sorted(df["snapshot_month"].dropna().unique())
-    months = st.sidebar.pills(
-        "Snapshot month", month_values, selection_mode="multi", key="f_month",
-        format_func=lambda m: month_label(m)[:3],
-    )
-
-    if active:
-        st.sidebar.button("Reset filters", on_click=clear_filters, icon=":material/restart_alt:", width="stretch")
+        if active:
+            st.button("Reset filters", on_click=clear_filters, icon=":material/restart_alt:")
 
     mask = pd.Series(True, index=df.index)
     if vendors:
@@ -746,17 +813,20 @@ def sidebar_filters(df):
 
 # ---------------------------------------------------------------- pages
 
-page = header()
-filtered = sidebar_filters(ranked) if page in ("Overview", "Fix-Next List") else ranked
+page, filters_slot = header()
 if page in ("Overview", "Fix-Next List"):
+    with filters_slot:
+        filtered = filter_panel(ranked)
     filter_summary(filtered)
+else:
+    filtered = ranked
 
 if page == "Overview":
     ticker(filtered)
     hero(len(ranked))
 
     if filtered.empty:
-        empty_state("No CVEs match these filters", "Clear a filter in the sidebar to see results.")
+        empty_state("No CVEs match these filters", "Open Filters at the top to change them, or clear them all.")
     else:
         top500 = filtered[filtered["rank"] <= 500]
         cutoff = ranked.head(500)["score"].iloc[-1]
@@ -824,7 +894,7 @@ elif page == "Fix-Next List":
     ticker(filtered)
     top_n = st.slider("Show top N", min_value=50, max_value=500, value=100, step=10)
     if filtered.empty:
-        empty_state("No CVEs match these filters", "Clear a filter in the sidebar to see results.")
+        empty_state("No CVEs match these filters", "Open Filters at the top to change them, or clear them all.")
     else:
         shown = filtered.head(top_n)
         st.caption(f"Showing the top {len(shown):,} of {len(filtered):,} matching CVEs.")
@@ -844,7 +914,7 @@ elif page == "CVE Detail":
     cve = st.selectbox("CVE", options, key="detail_cve", help="Type to search. Ordered by rank.")
     row = ranked.loc[ranked["cve_id"] == cve].iloc[0]
 
-    cve_card(row, f"RANK #{int(row['rank'])} · SCORE {fmt(row['score'])}", with_signals=False)
+    cve_card(row, f"RANK #{int(row['rank'])} · SCORE {fmt(row['score'])}", with_signals=False, with_similar=True)
 
     rationale = str(row["rationale"]).strip()
     body = esc(rationale) if rationale else '<span class="ff-pending">Granite rationale pending for this CVE</span>'
