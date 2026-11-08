@@ -6,8 +6,8 @@ It only holds the deploy files; the code lives on the other branches.
 - `index.html` runs the Streamlit dashboard in the visitor's browser with
   [stlite](https://github.com/whitphx/stlite) (`@stlite/browser@1.12.0`, Streamlit 1.65),
   and shows a loading screen while Python starts (about 20–30 s).
-- `app/` is a copy of `app/` from the `app-ui` branch (commit f2e1875), unchanged.
-  It currently uses the sample data (`sample_ranked_2026.csv`, `sample_backtest.csv`).
+- `app/` is a copy of `app/` from `main` (commit d3f7906), unchanged. It uses the frozen
+  model's data: `ranked_light.csv` (top 5,000) and `backtest.csv`.
 - `CNAME` sets the custom domain; `.nojekyll` makes Pages serve `app/.streamlit/config.toml`.
 
 To publish a newer version of the app, copy the updated `app/` folder over this one
