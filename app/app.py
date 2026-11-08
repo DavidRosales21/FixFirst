@@ -301,9 +301,25 @@ CSS = """
 .ff-tag i{display:inline-block;width:8px;height:8px;flex:0 0 auto}
 .ff-tag.off{background:none;color:var(--ff-muted)}
 
-.ff-filterbar{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:13px;margin:0}
-.ff-filterbar b{font-weight:600}
-.ff-chip{padding:2px 10px;border-radius:24px;border:1px solid var(--ff-line);background:var(--ff-layer);color:inherit;white-space:nowrap}
+/* Active filters: a fixed-height box under the header, one chip per filter value. When the chips
+   don't fit, the box scrolls and shows a blue scroll bar, so it's clear there is more inside. */
+.ff-active{display:flex;flex-direction:column;gap:6px}
+.ff-active-head{margin:0;font-size:13px}
+.ff-active-head b{font-weight:600}
+.ff-active-box{display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;max-height:88px;overflow-y:auto;overscroll-behavior:contain;
+  padding:8px 6px 8px 10px;border:1px solid var(--ff-line);background:var(--ff-layer);font-size:13px;line-height:1.4}
+.ff-active-box:focus-visible{outline:2px solid #4589FF;outline-offset:2px}
+.ff-active-none{color:var(--ff-muted)}
+/* Streamlit makes every scroll bar transparent until hover; this one always shows (blue thumb, gray track). */
+.ff-active-box{scrollbar-width:auto !important;scrollbar-color:#4589FF var(--ff-line) !important}
+/* Older Safari, which ignores scrollbar-color */
+.ff-active-box::-webkit-scrollbar{width:12px}
+.ff-active-box::-webkit-scrollbar-track{background:var(--ff-line)}
+.ff-active-box::-webkit-scrollbar-thumb{min-height:24px;background:#4589FF;background-clip:padding-box;border:3px solid transparent;border-radius:12px}
+.ff-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:2px 10px;border-radius:12px;
+  border:1px solid var(--ff-line);background:var(--ff-layer);color:inherit;overflow-wrap:anywhere}
+.ff-chip-k{color:var(--ff-muted);white-space:nowrap}
+.ff-chip-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:0 0 auto}
 .ff-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--ff-muted);margin:0}
 .ff-legend span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .ff-legend i{display:inline-block;width:10px;height:10px}
@@ -574,26 +590,42 @@ def month_label(month):
 
 
 def filter_summary(df):
-    """One line above the content saying what is shown and which filters are on."""
+    """Under the Filters button: how many CVEs are shown, then a box with every active filter,
+    one chip per value. The box keeps a fixed height and scrolls, with a visible scroll bar,
+    when there are more filters than fit."""
     s = st.session_state
     chips = []
-    if (s.get("f_query") or "").strip():
-        chips.append(f'Search “{esc(s["f_query"].strip())}”')
-    if s.get("f_sev"):
-        chips.append("Severity: " + ", ".join(esc(str(v).title()) for v in s["f_sev"]))
+
+    def chip(group, value, dot=None):
+        mark = f'<i class="ff-chip-dot" style="background:{dot}"></i>' if dot else ""
+        chips.append(f'<span class="ff-chip">{mark}<span class="ff-chip-k">{group}</span>{value}</span>')
+
+    query = (s.get("f_query") or "").strip()
+    if query:
+        chip("Search", f"“{esc(query)}”")
+    for v in s.get("f_sev") or []:
+        chip("Severity", esc(str(v).title()), SEV_COLOR.get(str(v).upper(), GRAY))
     if s.get("f_exploit"):
-        chips.append("Public exploit code only")
-    if s.get("f_vendor"):
-        chips.append("Vendor: " + ", ".join(esc(v) for v in s["f_vendor"]))
+        chip("Exploit code", "public only")
+    for v in s.get("f_vendor") or []:
+        chip("Vendor", esc(v))
     if s.get("f_cwe"):
-        names = s["f_cwe"]
-        chips.append(f"Weakness: {len(names)} types" if len(names) > 2 else "Weakness: " + ", ".join(esc(short(n, 30)) for n in names))
-    if s.get("f_month"):
-        chips.append("Month: " + ", ".join(esc(month_label(m)) for m in s["f_month"]))
-    lead = f'<span class="ff-muted">Showing</span> <b>{len(df):,}</b> <span class="ff-muted">of {len(ranked):,} CVEs</span>'
-    if not chips:
-        lead += ' <span class="ff-muted">· no filters</span>'
-    st.html(f'<div class="ff-filterbar">{lead}{"".join(f"<span class=ff-chip>{c}</span>" for c in chips)}</div>')
+        cwe_ids = ranked.drop_duplicates("cwe_name").set_index("cwe_name")["cwe_primary"]
+        for n in s["f_cwe"]:
+            chip("Weakness", esc(cwe_label(n, cwe_ids.get(n), limit=40)))
+    for m in s.get("f_month") or []:
+        chip("Month", esc(month_label(m)))
+
+    count = f"{len(chips)} active filter{'s' if len(chips) != 1 else ''}" if chips else "No active filters"
+    lead = (f'<span class="ff-muted">Showing</span> <b>{len(df):,}</b> <span class="ff-muted">of {len(ranked):,} CVEs'
+            f' · {count}</span>')
+    if chips:
+        box = (f'<div class="ff-active-box" role="region" aria-label="Active filters" tabindex="0">'
+               f'{"".join(chips)}</div>')
+    else:
+        box = ('<div class="ff-active-box ff-active-none">All CVEs are shown. '
+               'Open Filters at the top to narrow the list.</div>')
+    st.html(f'<div class="ff-active"><p class="ff-active-head">{lead}</p>{box}</div>')
 
 
 def ticker(df):
