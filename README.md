@@ -2,6 +2,8 @@
 
 Live demo: https://fixnext.select (dashboard)
 
+Model card for judges: [outputs/MODEL_CARD.md](outputs/MODEL_CARD.md)
+
 **Sheridan Datathon 2026 · IBM Track.** Which of 2026's 72,670 vulnerabilities will attackers actually use? FixNext ranks them with a model that reads the CVE description (IBM Granite embeddings) plus the weakness type, the issuing organisation, the CVSS attack vector and the public exploit signals known at publish time — and writes a plain-English "why fix this first" for the top of the list.
 
 Team: Hossam, David, Antesh, Calvin.
@@ -24,21 +26,27 @@ tests/       pytest
 4. Avoid editing the same notebook as someone else at the same time.
 5. `data/` is ignored by Git — large files never get pushed. Share them via the team Drive.
 
-## Setup
-Repo: https://github.com/DavidRosales21/FixNext
+## Quick start — the dashboard (3 commands, no data download needed)
 ```bash
-git clone https://github.com/DavidRosales21/FixNext.git
-cd FixNext
-pip install -r requirements.txt
+git clone https://github.com/DavidRosales21/FixNext.git && cd FixNext
+python -m pip install -r requirements.txt
+python -m streamlit run app/app.py
 ```
+Opens at http://localhost:8501 with the frozen 2026 ranking (app/ranked_light.csv). Hosted: https://fixnext.select
 
-## Run
+## Reproduce the full pipeline (needs the 850 MB data.zip from the track + Granite embeddings)
+See [data/README.md](data/README.md) for what goes in `data/` (the track's data.zip files and the Granite embedding outputs).
 ```bash
-pip install -r requirements.txt
-python -m src.build_features        # → outputs/features.parquet
-python -m src.train                 # → outputs/top500.csv + outputs/backtest.md
-python scripts/check_top500.py      # validate submission format
-streamlit run app/app.py
+python -m pip install -r requirements.txt
+python -m src.build_features        # CSVs → outputs/features.parquet (one row per CVE)
+python -m src.train                 # train + back-test → outputs/top500.csv, backtest.md, ranked_2026.csv
+python scripts/check_top500.py      # validate the submission format
+python -m src.discovery             # the 5 discovery findings → outputs/charts/ (charts + tables)
+python -m src.history_rates         # strictly pre-2024 exposure-rate features → outputs/history/
+python -m src.caught_vs_missed      # exploited CVEs we caught vs missed on the 2025 hold-out → chart 6
+python -m src.results_charts        # FixNext vs baselines + top-500 profile → charts 7, 8
+python -m src.make_app_data         # light browser data for the dashboard → app/ranked_light.csv, app/backtest.csv
+python -m streamlit run app/app.py  # launch the dashboard on the reproduced data
 ```
 
 ## Keeping it fair — columns used
@@ -56,11 +64,13 @@ Allowed (known at publish / end of snapshot month): `description`, `assigner`, `
 | Public exploit code first, then EPSS | 10 | 17 |
 | **FixNext** | **15** | **19** |
 | FixNext without "exploited"/"in the wild" keywords (ablation) | 9 | 15 |
-Positives available: 39. Full table: outputs/backtest.md.
+Positives available: 39. Full table: [outputs/backtest.md](outputs/backtest.md).
 
-Final rule: blend of LightGBM (TF-IDF text + CWE + assigner + CVSS vector + exploit signals + IBM Granite nearest-exploited-CVE similarity) with the exploit-code-then-EPSS ranking. Full ablations, including Granite PCA and five-year history features that did not help, in outputs/backtest.md.
+Final rule: blend of LightGBM (TF-IDF text + CWE + assigner + CVSS vector + exploit signals + IBM Granite nearest-exploited-CVE similarity) with the exploit-code-then-EPSS ranking. Full ablations, including Granite PCA and five-year history features that did not help, in [outputs/backtest.md](outputs/backtest.md).
 
 ### What we found
+All figures below live in [outputs/charts/](outputs/charts/).
+
 **Microsoft alone = 19.6% of all KEV** — who issued the CVE beats how severe it is.
 ![](outputs/charts/1_assigner_lift.png)
 
