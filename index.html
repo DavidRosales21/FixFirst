@@ -11,145 +11,24 @@
     <meta property="og:url" content="https://fixnext.select/" />
     <meta property="og:type" content="website" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/browser@1.12.0/build/stlite.css" />
+    <!--
+      fixnext.select shows the live app from Streamlit Community Cloud (fixnext.streamlit.app), which has
+      Ask FixNext (Gemini). Community Cloud has no custom domains, so the app is embedded full-screen with
+      ?embed=true, the official way to iframe a Streamlit app. The in-browser (stlite) copy is at /lite.html.
+    -->
     <style>
-      @font-face { font-family: "IBM Plex Sans"; src: url("app/static/ibm-plex-sans-latin-300-normal.woff2") format("woff2"); font-weight: 300; font-display: swap; }
-      @font-face { font-family: "IBM Plex Sans"; src: url("app/static/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
-      @font-face { font-family: "IBM Plex Sans"; src: url("app/static/ibm-plex-sans-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
-
-      /* Carbon colors from app/.streamlit/config.toml */
-      :root { --bg: #ffffff; --panel: #f4f4f4; --text: #161616; --muted: #525252; --line: #e0e0e0; --blue: #0f62fe; }
-      @media (prefers-color-scheme: dark) {
-        :root:not([data-theme="light"]) { --bg: #161616; --panel: #262626; --text: #f4f4f4; --muted: #a8a8a8; --line: #393939; --blue: #78a9ff; }
-      }
-      :root[data-theme="dark"] { --bg: #161616; --panel: #262626; --text: #f4f4f4; --muted: #a8a8a8; --line: #393939; --blue: #78a9ff; }
-
-      html, body { margin: 0; background: var(--bg); }
-
-      #ff-boot {
-        position: fixed; inset: 0; z-index: 2147483647;
-        display: flex; align-items: center; justify-content: center; padding: 16px;
-        background: var(--bg); color: var(--text);
-        font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
-        transition: opacity 0.35s ease;
-      }
-      #ff-boot.ff-done { opacity: 0; pointer-events: none; }
-      .ff-boot-card { width: 100%; max-width: 440px; }
-      .ff-boot-brand { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
-      .ff-boot-tag { font-size: 14px; font-weight: 300; color: var(--muted); margin: 2px 0 28px; }
-      .ff-boot-bar { height: 4px; background: var(--line); overflow: hidden; position: relative; }
-      .ff-boot-bar::after {
-        content: ""; position: absolute; inset: 0 auto 0 0; width: 35%;
-        background: var(--blue); animation: ff-slide 1.4s ease-in-out infinite;
-      }
-      @keyframes ff-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
-      @media (prefers-reduced-motion: reduce) { .ff-boot-bar::after { animation: none; width: 100%; opacity: 0.6; } }
-      .ff-boot-step { font-size: 16px; margin: 16px 0 6px; }
-      .ff-boot-note { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 0; }
+      :root { --bg: #0f1a1a; }
+      @media (prefers-color-scheme: light) { :root { --bg: #ffffff; } }
+      html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+      iframe { position: fixed; inset: 0; width: 100%; height: 100%; height: 100dvh; border: 0; display: block; }
     </style>
   </head>
   <body>
-    <div id="ff-boot" role="status" aria-live="polite">
-      <div class="ff-boot-card">
-        <p class="ff-boot-brand">FixNext</p>
-        <p class="ff-boot-tag">Before the Breach · Sheridan Datathon 2026 · IBM track</p>
-        <div class="ff-boot-bar" aria-hidden="true"></div>
-        <p class="ff-boot-step" id="ff-boot-step">Loading the dashboard…</p>
-        <p class="ff-boot-note" id="ff-boot-note">The whole app runs in your browser, so Python starts up here first. This takes about 20–30 seconds.</p>
-      </div>
-    </div>
-    <div id="root"></div>
-
-    <script>
-      // Match the loading screen to the theme the viewer last picked inside the app.
-      try {
-        for (var i = 0; i < localStorage.length; i++) {
-          var k = localStorage.key(i);
-          if (k.indexOf("stActiveTheme-") === 0) {
-            var v = JSON.parse(localStorage.getItem(k));
-            var name = (v && v.name) || v;
-            if (name === "Light") document.documentElement.setAttribute("data-theme", "light");
-            if (name === "Dark") document.documentElement.setAttribute("data-theme", "dark");
-          }
-        }
-      } catch (e) {}
-    </script>
-
-    <script type="module">
-      import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@1.12.0/build/stlite.js";
-
-      const boot = document.getElementById("ff-boot");
-      const step = document.getElementById("ff-boot-step");
-      const note = document.getElementById("ff-boot-note");
-
-      // Hide the loading screen as soon as the dashboard's header is on the page.
-      const ready = () => document.querySelector(".st-key-ffheader");
-      const observer = new MutationObserver(() => {
-        if (ready()) {
-          observer.disconnect();
-          boot.classList.add("ff-done");
-          setTimeout(() => boot.remove(), 400);
-        }
-      });
-      observer.observe(document.getElementById("root"), { childList: true, subtree: true });
-
-      const steps = [
-        [6000, "Starting Python…"],
-        [12000, "Loading pandas and Plotly…"],
-        [18000, "Ranking the CVEs…"],
-        [45000, "Still loading — a slow connection can take up to a minute."],
-      ];
-      steps.forEach(([ms, text]) => setTimeout(() => { if (!ready()) step.textContent = text; }, ms));
-      setTimeout(() => {
-        if (!ready()) note.textContent = "If nothing shows up, reload the page.";
-      }, 90000);
-
-      // Every file is re-checked with the server on each visit ("no-cache": a 304 when unchanged),
-      // so a push to this branch shows up on the next load instead of after the 10-minute cache.
-      async function load(path, optional = false) {
-        const res = await fetch(path, { cache: "no-cache" });
-        if (res.ok) return new Uint8Array(await res.arrayBuffer());
-        if (optional) return null;
-        throw new Error(`${path}: HTTP ${res.status}`);
-      }
-      const wanted = {
-        "app.py": ["app/app.py"],
-        "sample_ranked_2026.csv": ["app/sample_ranked_2026.csv"],
-        "sample_backtest.csv": ["app/sample_backtest.csv"],
-        ".streamlit/config.toml": ["app/.streamlit/config.toml"],
-        // The model's drop-in files: copied into app/ on this branch, they replace the sample
-        // (app.py prefers them when present). Until then these requests just come back 404.
-        "ranked_light.csv": ["app/ranked_light.csv", true],
-        "backtest.csv": ["app/backtest.csv", true],
-        "catches.csv": ["app/catches.csv", true],
-        "profile.json": ["app/profile.json", true],
-        "exploited_2025.csv": ["app/exploited_2025.csv", true],
-        "static/team/hossam.jpg": ["app/static/team/hossam.jpg", true],
-        "static/team/david.jpg": ["app/static/team/david.jpg", true],
-        "static/team/antesh.jpg": ["app/static/team/antesh.jpg", true],
-      };
-
-      try {
-        const files = {};
-        await Promise.all(Object.entries(wanted).map(async ([name, [path, optional]]) => {
-          const data = await load(path, optional);
-          if (data) files[name] = data;
-        }));
-        mount(
-          {
-            requirements: ["plotly"],
-            entrypoint: "app.py",
-            // The FixNext loading screen shows progress; stlite's own toasts would linger over the app.
-            disableProgressToasts: true,
-            disableModuleAutoLoadToasts: true,
-            files,
-          },
-          document.getElementById("root"),
-        );
-      } catch (e) {
-        step.textContent = "The dashboard couldn't start.";
-        note.textContent = "Reload the page to try again.";
-      }
-    </script>
+    <iframe
+      src="https://fixnext.streamlit.app/?embed=true"
+      title="FixNext dashboard"
+      allow="clipboard-read; clipboard-write; fullscreen"
+      referrerpolicy="strict-origin-when-cross-origin"
+    ></iframe>
   </body>
 </html>
