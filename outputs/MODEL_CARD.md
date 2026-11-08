@@ -48,7 +48,7 @@ Time-based: train on 2024, measure on 2025-H1 (39 positives). Hits@k = how many 
 | Blend (Granite, bigger model) | 11 | 12 | 15 |
 | **Blend (TF-IDF + Granite kNN) — SHIPPED** | **12** | **15** | **19** |
 
-Official baselines on the 2026 benchmark find 6–8 of the top 500. Our shipped blend finds **19 of 39** in validation at top-500 and **15 of 100** at top-100 — above every baseline.
+On the same 2025 validation, the three official baselines find 6, 11 and 17 of the 39; the shipped blend finds 19 (and 15 of them in the top 100). The 2026 benchmark itself is scored by the judges; IBM reports the baselines find 6–8 there.
 
 **Honest reading (3 lines).** (1) With only 39 validation positives, differences of 1–2 hits are noisy; we trusted them only where a change helped at one cutoff and hurt at none. (2) Granite as **PCA features** did *not* beat the simple TF-IDF text signal (worse at every cutoff) — but Granite used for **kNN resemblance to known-exploited CVEs** did help (+1 at top-100, equal elsewhere) and `gr_knn_max` became the #4 feature. (3) Five years of pre-2024 per-group KEV **history rates** gave no lift and were dropped — the `assigner` and `cwe_primary` features already carry that signal.
 
