@@ -51,12 +51,14 @@ Allowed (known at publish / end of snapshot month): `description`, `assigner`, `
 ### Back-test — CVEs published Jan–Jun 2025, scored with information available at end of publish month
 | Ranking | Exploited CVEs found in top 100 | in top 500 |
 |---|---|---|
-| CVSS v3 score first | [ ] | [ ] |
-| EPSS first | [ ] | [ ] |
-| Public exploit code first, then EPSS | [ ] | [ ] |
-| **FixNext** | [ ] | [ ] |
-| FixNext without "exploited"/"in the wild" keywords (ablation) | [ ] | [ ] |
-Positives available: [ ]. Full table: outputs/backtest.md.
+| CVSS v3 score first | 4 | 6 |
+| EPSS first | 7 | 11 |
+| Public exploit code first, then EPSS | 10 | 17 |
+| **FixNext** | **15** | **19** |
+| FixNext without "exploited"/"in the wild" keywords (ablation) | 9 | 15 |
+Positives available: 39. Full table: outputs/backtest.md.
+
+Final rule: blend of LightGBM (TF-IDF text + CWE + assigner + CVSS vector + exploit signals + IBM Granite nearest-exploited-CVE similarity) with the exploit-code-then-EPSS ranking. Full ablations, including Granite PCA and five-year history features that did not help, in outputs/backtest.md.
 
 ### What we found
 **Microsoft alone = 19.6% of all KEV** — who issued the CVE beats how severe it is.
@@ -73,6 +75,12 @@ Positives available: [ ]. Full table: outputs/backtest.md.
 
 **Internet-edge + auth-bypass + RCE words raise the odds; XSS/WordPress near zero.**
 ![](outputs/charts/5_phrases.png)
+
+**On the 2025 hold-out, FixNext found 19 of 39 exploited CVEs in its top 500** — vs 17 (exploit-code + EPSS), 11 (EPSS) and 6 (CVSS).
+![](outputs/charts/7_model_vs_baselines.png)
+
+**We caught exploited CVEs the industry scores buried** — ConnectWise ScreenConnect, Kentico Xperience, Microsoft NTLM — all with near-zero EPSS; the honest "missed by all" cases are called out too.
+![](outputs/charts/6_caught_vs_missed.png)
 
 ## IBM technology
 - `ibm-granite/granite-embedding-small-english-r2` — description embeddings (Colab GPU)
