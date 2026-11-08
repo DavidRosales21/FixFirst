@@ -904,7 +904,7 @@ if page == "Overview":
         # Four KPI tiles: one row when there's room, 2 × 2 when not; same height, numbers aligned.
         with st.container(key="ffkpis"):
             a, b, c, d = st.columns(4, gap="small")
-            a.metric("CVEs scored", f"{len(filtered):,}")
+            a.metric("CVEs scored (72,670 · top 5,000 shown)", f"{len(filtered):,}")
             b.metric("Score cut-off for rank 500", f"{cutoff:.3f}", help="Score of the CVE ranked 500th in the full ranking.")
             pct = f"{top500['has_exploit'].mean():.0%}" if len(top500) else NO
             c.metric("Top 500 with public exploit code", pct)
