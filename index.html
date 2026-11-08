@@ -104,22 +104,31 @@
         if (!ready()) note.textContent = "If nothing shows up, reload the page.";
       }, 90000);
 
-      const files = {
-        "app.py": { url: "app/app.py" },
-        "sample_ranked_2026.csv": { url: "app/sample_ranked_2026.csv" },
-        "sample_backtest.csv": { url: "app/sample_backtest.csv" },
-        ".streamlit/config.toml": { url: "app/.streamlit/config.toml" },
-      };
-      // The model's drop-in files: copied into app/ on this branch, they replace the sample
-      // (app.py prefers them when present). Until then these checks just come back 404.
-      for (const name of ["ranked_light.csv", "backtest.csv"]) {
-        try {
-          const res = await fetch(`app/${name}`, { method: "HEAD", cache: "no-store" });
-          if (res.ok) files[name] = { url: `app/${name}` };
-        } catch (e) {}
+      // Every file is re-checked with the server on each visit ("no-cache": a 304 when unchanged),
+      // so a push to this branch shows up on the next load instead of after the 10-minute cache.
+      async function load(path, optional = false) {
+        const res = await fetch(path, { cache: "no-cache" });
+        if (res.ok) return new Uint8Array(await res.arrayBuffer());
+        if (optional) return null;
+        throw new Error(`${path}: HTTP ${res.status}`);
       }
+      const wanted = {
+        "app.py": ["app/app.py"],
+        "sample_ranked_2026.csv": ["app/sample_ranked_2026.csv"],
+        "sample_backtest.csv": ["app/sample_backtest.csv"],
+        ".streamlit/config.toml": ["app/.streamlit/config.toml"],
+        // The model's drop-in files: copied into app/ on this branch, they replace the sample
+        // (app.py prefers them when present). Until then these requests just come back 404.
+        "ranked_light.csv": ["app/ranked_light.csv", true],
+        "backtest.csv": ["app/backtest.csv", true],
+      };
 
       try {
+        const files = {};
+        await Promise.all(Object.entries(wanted).map(async ([name, [path, optional]]) => {
+          const data = await load(path, optional);
+          if (data) files[name] = data;
+        }));
         mount(
           {
             requirements: ["plotly"],
