@@ -652,20 +652,24 @@ html.ff-dark [data-testid="stPopoverBody"] [data-testid="stButtonGroup"] button[
 .ff-face.teal{box-shadow:0 0 0 3px var(--ff-teal)}.ff-face.violet{box-shadow:0 0 0 3px var(--ff-violet)}.ff-face.amber{box-shadow:0 0 0 3px var(--ff-amber)}
 .ff-face-txt{display:grid;place-items:center;font:700 20px/1 var(--ff-display);color:var(--ff-on-navy)}
 @media (max-width:760px){.ff-team-hero{grid-template-columns:1fr}}
-.ff-team{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:18px;margin:8px 0 20px}
-.ff-member{display:grid;grid-template-columns:150px 1fr;gap:22px;padding:24px;background:var(--ff-layer);border:1px solid var(--ff-line);border-radius:var(--ff-r);border-top:5px solid var(--ff-green)}
-.ff-member.teal{border-top-color:var(--ff-teal)}.ff-member.violet{border-top-color:var(--ff-violet)}.ff-member.amber{border-top-color:var(--ff-amber)}
-.ff-portrait{width:150px;height:150px;border-radius:22px;object-fit:cover;display:block}
-.ff-portrait-txt{display:grid;place-items:center;font:700 40px/1 var(--ff-display);color:var(--ff-navy);background:var(--ff-green)}
+.ff-team{display:grid;grid-template-columns:1fr;gap:14px;margin:8px 0 20px}
+.ff-member{display:grid;grid-template-columns:168px minmax(0,1fr) 300px;gap:28px;align-items:start;padding:26px 28px;background:var(--ff-layer);border:1px solid var(--ff-line);border-radius:var(--ff-r);border-left:6px solid var(--ff-green)}
+.ff-member.teal{border-left-color:var(--ff-teal)}.ff-member.violet{border-left-color:var(--ff-violet)}.ff-member.amber{border-left-color:var(--ff-amber)}
+.ff-portrait{width:168px;height:168px;border-radius:50%;object-fit:cover;display:block;box-shadow:0 0 0 4px var(--ff-layer),0 0 0 7px var(--ff-green)}
+.ff-member.teal .ff-portrait{box-shadow:0 0 0 4px var(--ff-layer),0 0 0 7px var(--ff-teal)}.ff-member.violet .ff-portrait{box-shadow:0 0 0 4px var(--ff-layer),0 0 0 7px var(--ff-violet)}.ff-member.amber .ff-portrait{box-shadow:0 0 0 4px var(--ff-layer),0 0 0 7px var(--ff-amber)}
+.ff-portrait-txt{display:grid;place-items:center;font:700 44px/1 var(--ff-display);color:var(--ff-navy);background:var(--ff-green)}
 .ff-member.teal .ff-portrait-txt{background:var(--ff-teal)}.ff-member.violet .ff-portrait-txt{background:var(--ff-violet);color:#fff}.ff-member.amber .ff-portrait-txt{background:var(--ff-amber)}
-.ff-member-body b{display:block;font-family:var(--ff-display);font-size:21px;font-weight:700;letter-spacing:-.01em}
-.ff-role-chip{display:inline-block;margin:6px 8px 0 0;padding:4px 10px;border-radius:12px;font:600 11px/1.4 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;background:var(--ff-green-bg);color:var(--ff-green-ink)}
+.ff-member-body{min-width:0}.ff-member-body b{display:block;font-family:var(--ff-display);font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.ff-member-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:10px 0 0}
+.ff-role-chip{display:inline-block;padding:5px 10px;border-radius:12px;font:600 11px/1.3 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;background:var(--ff-green-bg);color:var(--ff-green-ink)}
 .ff-member.teal .ff-role-chip{background:var(--ff-teal-bg);color:var(--ff-teal-ink)}.ff-member.violet .ff-role-chip{background:var(--ff-violet-bg);color:var(--ff-violet-ink)}.ff-member.amber .ff-role-chip{background:var(--ff-amber-bg);color:var(--ff-amber-ink)}
-.ff-member-program{display:inline-block;margin-top:6px;font-size:12px;color:var(--ff-muted)}
-.ff-member-about{margin:12px 0 12px;font-size:14px;line-height:1.55}
-.ff-member-did{padding:10px 14px;border-radius:var(--ff-r2);background:var(--ff-layer2,#F4F4F4);font-size:13px;line-height:1.5;color:var(--ff-muted)}
-.ff-member-did i{display:block;font:600 11px/1.4 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ff-ink);margin-bottom:3px;font-style:normal}
-@media (max-width:640px){.ff-member{grid-template-columns:1fr}.ff-portrait{width:110px;height:110px}}
+.ff-member-program{font-size:13px;color:var(--ff-muted)}
+.ff-member-about{margin:14px 0 0;font-size:15px;line-height:1.6;max-width:62em}
+.ff-member-did{padding:16px 18px;border-radius:var(--ff-r2);background:var(--ff-navy);color:var(--ff-on-navy-muted);font-size:13.5px;line-height:1.55}
+.ff-member-did i{display:block;font:600 11px/1.4 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--ff-green);margin-bottom:6px;font-style:normal}
+.ff-member.teal .ff-member-did i{color:var(--ff-teal)}.ff-member.violet .ff-member-did i{color:var(--ff-violet)}.ff-member.amber .ff-member-did i{color:var(--ff-amber)}
+@media (max-width:980px){.ff-member{grid-template-columns:120px minmax(0,1fr)}.ff-member-did{grid-column:1 / -1}.ff-portrait{width:120px;height:120px}}
+@media (max-width:560px){.ff-member{grid-template-columns:1fr}}
 .ff-judge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px;margin:18px 0}
 .ff-judge{display:block;padding:16px 18px;background:var(--ff-navy);color:var(--ff-on-navy) !important;text-decoration:none !important;border-radius:var(--ff-r2);border-left:4px solid var(--ff-green)}
 .ff-judge.teal{border-left-color:var(--ff-teal)}.ff-judge.violet{border-left-color:var(--ff-violet)}.ff-judge.amber{border-left-color:var(--ff-amber)}
@@ -1534,9 +1538,9 @@ def team_page():
         about_html = f'<p class="ff-member-about">{esc(about)}</p>' if about else '<p class="ff-member-about ff-pending">Bio on its way.</p>'
         cards.append(
             f'<div class="ff-member {tone}">{portrait}'
-            f'<div class="ff-member-body"><b>{esc(name)}</b><span class="ff-role-chip">{esc(role)}</span>'
-            f'<span class="ff-member-program">{esc(program)}</span>{about_html}'
-            f'<div class="ff-member-did"><i>This weekend</i>{esc(did)}</div></div></div>')
+            f'<div class="ff-member-body"><b>{esc(name)}</b><div class="ff-member-meta"><span class="ff-role-chip">{esc(role)}</span>'
+            f'<span class="ff-member-program">{esc(program)}</span></div>{about_html}</div>'
+            f'<div class="ff-member-did"><i>This weekend</i>{esc(did)}</div></div>')
     st.html('<div class="ff-team">' + "".join(cards) + '</div>')
     st.html('<div class="ff-box"><h2>How we worked</h2>'
             '<p>One lead with a plan and a message protocol (every task numbered, every result reviewed), two builders, one writer. '
