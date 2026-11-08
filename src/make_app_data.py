@@ -55,16 +55,20 @@ def main():
     light["similar_cves"] = [sim_map.get(cid, "") if (rk <= 500) else ""
                              for cid, rk in zip(light["cve_id"], ranks)]
 
-    rat_path = OUT / "rationales.csv"
-    if rat_path.exists():
-        rat = pd.read_csv(rat_path, dtype=str)
+    rat_frames = []
+    for name in ("rationales.csv", "rationales_2.csv"):  # rationales_2 overrides on cve_id (last wins)
+        p = OUT / name
+        if p.exists():
+            rat_frames.append(pd.read_csv(p, dtype=str))
+    if rat_frames:
+        rat = pd.concat(rat_frames, ignore_index=True).drop_duplicates("cve_id", keep="last")
         rmap = dict(zip(rat["cve_id"], rat["rationale"]))
         light["rationale"] = [rmap.get(cid, "" if pd.isna(cur) else cur)
                               for cid, cur in zip(light["cve_id"], light["rationale"])]
-        merged_rat = True
+        merged_rat = "%d row(s) from %d file(s)" % (len(rat), len(rat_frames))
     else:
         light["rationale"] = light["rationale"].fillna("")
-        merged_rat = False
+        merged_rat = "none (no rationale file present)"
 
     out_cols = contract_cols + ["similar_cves"]
     APP.mkdir(parents=True, exist_ok=True)
@@ -89,9 +93,8 @@ def main():
     # ---------- c. prints ----------
     lp = APP / "ranked_light.csv"
     bp = APP / "backtest.csv"
-    print("ranked_light.csv : %d rows, %d cols, %.2f MB  (similar_cves on top 500, rationale %s)"
-          % (len(light), len(out_cols), lp.stat().st_size / 1e6,
-             "merged from rationales.csv" if merged_rat else "empty - rationales.csv absent"))
+    print("ranked_light.csv : %d rows, %d cols, %.2f MB  (similar_cves on top 500, rationale: %s)"
+          % (len(light), len(out_cols), lp.stat().st_size / 1e6, merged_rat))
     print("backtest.csv     : %d rows, %d bytes" % (len(bt), bp.stat().st_size))
     print(bt.to_string(index=False))
 
