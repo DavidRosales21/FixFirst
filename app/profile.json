@@ -1,0 +1,26 @@
+{
+  "pct_epss_under_1pct_top500": 60.2,
+  "pct_epss_under_1pct_all": 98.0,
+  "pct_exploit_code_top500": 83.4,
+  "pct_exploit_code_all": 2.3,
+  "median_epss_top500": 0.0072,
+  "top_cwes_top500": [
+    {
+      "name": "Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+      "pct_top500": 15.0,
+      "pct_all": 1.8
+    },
+    {
+      "name": "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+      "pct_top500": 8.2,
+      "pct_all": 3.3
+    },
+    {
+      "name": "Deserialization of Untrusted Data",
+      "pct_top500": 7.8,
+      "pct_all": 1.3
+    }
+  ],
+  "pct_critical_top500": 55.2,
+  "pct_critical_all": 11.8
+}
