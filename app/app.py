@@ -669,13 +669,34 @@ def field_cells():
     return "".join(cells)
 
 
-def hero(total):
+SCORED_TOTAL = 72_670   # every CVE in the 2026 benchmark is ranked; the dashboard loads the top 5,000
+
+
+def backtest_summary(bt):
+    """Our hits vs the best baseline, read from backtest.csv (never hard-coded)."""
+    ours_pattern = r"fix\s*-?\s*(?:first|next)"
+    is_ours = bt["method"].str.contains(ours_pattern, case=False, regex=True, na=False)
+    ours, base = bt[is_ours], bt[~is_ours]
+    cols = [c for c in ("hits_at_100", "hits_at_500") if c in bt]
+    out = {"positives": int(bt["positives_available"].max())}
+    for c in cols:
+        out[c] = (int(ours[c].max()) if len(ours) else 0, int(base[c].max()) if len(base) else 0)
+    return out
+
+
+def hero(bt):
+    s = backtest_summary(bt)
+    ours500, base500 = s.get("hits_at_500", (0, 0))
+    ours100, base100 = s.get("hits_at_100", (0, 0))
+    note = (
+        f"Tested on 2025: {ours500} of the {s['positives']} later-exploited CVEs land in our top 500 — "
+        f"the best industry ranking finds {base500}. In the top 100: {ours100} vs {base100}."
+    )
     st.html(
         '<section class="ff-hero" aria-label="Scan">'
         '<div><p class="ff-eyebrow">SHERIDAN DATATHON 2026 · IBM TRACK</p>'
-        f'<h1>{total:,} CVEs scanned.<br><span>The lit ones are next.</span></h1>'
-        '<p class="ff-note">As the model scans 2026\'s CVEs, the riskiest light up and move '
-        'to the top of the list.</p></div>'
+        f'<h1>{SCORED_TOTAL:,} CVEs scored.<br><span>500 to fix next.</span></h1>'
+        f'<p class="ff-note">{esc(note)}</p></div>'
         f'<div class="ff-field" aria-hidden="true"><div class="ff-grid">{field_cells()}</div>'
         '<span class="ff-scan"></span></div></section>'
     )
@@ -747,6 +768,42 @@ def bar_chart(labels, values, colors, hovers, bold=None, row_px=44):
     )
     fig.update_xaxes(visible=False, range=[0, (max(values) if values else 1) * 1.15])
     fig.update_yaxes(visible=False, autorange="reversed")
+    st.plotly_chart(fig, theme="streamlit", width="stretch", config={"displayModeBar": False})
+
+
+def grouped_bar_chart(methods, bt, is_ours, positives, row_px=78):
+    """Two thin bars per ranking — hits in its top 100 and in its top 500 — with the method name
+    written above the pair. Ours is blue, the baselines grey; the top-100 bar is the lighter shade."""
+    n = len(methods)
+    series = [("top 100", "hits_at_100", 0.55), ("top 500", "hits_at_500", 1.0)]
+    series = [s for s in series if s[1] in bt]
+    k = len(series)
+    fig = go.Figure()
+    for j, (name, col, alpha) in enumerate(series):
+        vals = [int(v) for v in bt[col].tolist()]
+        offs = (j - (k - 1) / 2) * 0.34
+        fig.add_trace(go.Bar(
+            name=name, x=vals, y=[i + offs for i in range(n)], orientation="h", width=0.3,
+            marker=dict(color=[rgba(BLUE, alpha) if o else rgba(GRAY, alpha) for o in is_ours], cornerradius=4),
+            text=[f"{v}" for v in vals], textposition="outside", cliponaxis=False,
+            customdata=[f"{m}: {v} of {positives} later-exploited CVEs in its {name}" for m, v in zip(methods, vals)],
+            hovertemplate="%{customdata}<extra></extra>",
+        ))
+    for i, label in enumerate(methods):
+        text = str(label).replace("<", "&lt;").replace(">", "&gt;")
+        if is_ours[i]:
+            text = f"<b>{text}</b>"
+        fig.add_annotation(x=0, y=i - 0.5, xref="x", yref="y", text=text, showarrow=False,
+                           xanchor="left", yanchor="middle", yshift=-4, font=dict(size=12))
+    xmax = max(int(bt[c].max()) for _, c, _ in series) if series else 1
+    fig.update_layout(
+        height=n * row_px + 56, margin=dict(l=0, r=8, t=4, b=36), barmode="overlay",
+        legend=dict(orientation="h", x=0, y=-0.16, yanchor="top", font=dict(size=12), title=None),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="IBM Plex Sans, Helvetica Neue, Arial, sans-serif", size=13),
+    )
+    fig.update_xaxes(visible=False, range=[0, xmax * 1.15])
+    fig.update_yaxes(visible=False, range=[n - 0.5, -0.8])
     st.plotly_chart(fig, theme="streamlit", width="stretch", config={"displayModeBar": False})
 
 
@@ -892,7 +949,7 @@ else:
 
 if page == "Overview":
     ticker(filtered)
-    hero(len(ranked))
+    hero(backtest)
 
     if filtered.empty:
         empty_state("No CVEs match these filters", "Open Filters at the top to change them, or clear them all.")
@@ -904,7 +961,9 @@ if page == "Overview":
         # Four KPI tiles: one row when there's room, 2 × 2 when not; same height, numbers aligned.
         with st.container(key="ffkpis"):
             a, b, c, d = st.columns(4, gap="small")
-            a.metric("CVEs scored (72,670 · top 5,000 shown)", f"{len(filtered):,}")
+            a.metric("CVEs scored", f"{SCORED_TOTAL:,}",
+                     help=f"Every CVE in the 2026 benchmark is ranked. The dashboard loads the top {len(ranked):,}; "
+                          f"{len(filtered):,} match your current filters.")
             b.metric("Score cut-off for rank 500", f"{cutoff:.3f}", help="Score of the CVE ranked 500th in the full ranking.")
             pct = f"{top500['has_exploit'].mean():.0%}" if len(top500) else NO
             c.metric("Top 500 with public exploit code", pct)
@@ -919,19 +978,13 @@ if page == "Overview":
         with col1:
             with st.container(key="ffcard_backtest"):
                 positives = int(backtest["positives_available"].max())
-                chart_heading("Exploited CVEs found in top 500", f"2025 hold-out, {positives} positives available")
+                chart_heading("Exploited CVEs found", f"in each ranking's top 100 and top 500 · 2025 hold-out, {positives} later-exploited CVEs")
                 # Our row is highlighted. The team renamed FixFirst to FixNext; older CSVs still say
                 # "FixFirst model", so match both and always show the new name.
                 ours_pattern = r"fix\s*-?\s*(?:first|next)"
                 is_ours = backtest["method"].str.contains(ours_pattern, case=False, regex=True, na=False)
-                methods = [("FixNext model" if ours else m) for m, ours in zip(backtest["method"], is_ours)]
-                bar_chart(
-                    methods,
-                    backtest["hits_at_500"].tolist(),
-                    [BLUE if ours else GRAY for ours in is_ours],
-                    [f"{m}: {h} of {positives} exploited CVEs in its top 500" for m, h in zip(methods, backtest["hits_at_500"])],
-                    bold=is_ours.tolist(),
-                )
+                methods = [("FixNext" if ours else m) for m, ours in zip(backtest["method"], is_ours)]
+                grouped_bar_chart(methods, backtest, is_ours.tolist(), positives)
         with col2:
             with st.container(key="ffcard_vendors"):
                 chart_heading("Top vendors in the top 500", "Top 10 named vendors by number of CVEs")
@@ -1025,26 +1078,70 @@ else:
     st.title("Methodology")
     st.markdown(
         """
-FixNext ranks 2026's vulnerabilities by how likely attackers are to use them.
-Everything it looks at was already known when the CVE was published or at the end of its snapshot month.
+FixNext ranks every CVE published January–September 2026 by how likely attackers are to actually use it —
+defined as being added to CISA's Known Exploited Vulnerabilities (KEV) list after it was published.
+Everything the model looks at was already known at the end of the CVE's publish month.
+"""
+    )
 
-### What the model uses
-- **The CVE description**, turned into numbers with IBM Granite embeddings (`granite-embedding-small-english-r2`).
-- **The weakness type** (CWE).
-- **Who issued the CVE** (the assigner, usually the vendor's security team).
-- **The CVSS vector**: the score and its parts, such as the attack vector.
-- **Public exploit signals at the snapshot month**: EPSS, Exploit-DB, Metasploit, Nuclei templates and GitHub proof-of-concept code.
+    st.markdown("### How it was tested")
+    st.markdown(
+        """
+Train on CVEs published in **2024**, then predict which CVEs published **January–June 2025** were later exploited
+(39 were). Count how many of those 39 each ranking puts in its top 100 and top 500 — the same test IBM applies
+to the 2026 benchmark, one year earlier, where we have the answers.
+"""
+    )
+    s_bt = backtest_summary(backtest)
+    _ours = backtest["method"].str.contains(r"fix\s*-?\s*(?:first|next)", case=False, regex=True, na=False)
+    table = backtest.assign(method=[("**FixNext**" if o else m) for m, o in zip(backtest["method"], _ours)])
+    cols = [c for c in ("hits_at_100", "hits_at_500") if c in table]
+    header = "| Ranking | " + " | ".join("in top " + c.split("_")[-1] for c in cols) + " |\n|---|" + ":---:|" * len(cols)
+    rows = "\n".join("| " + r["method"] + " | " + " | ".join(f"**{int(r[c])}**" if o else str(int(r[c])) for c in cols) + " |"
+                      for (_, r), o in zip(table.iterrows(), _ours))
+    st.markdown(header + "\n" + rows)
+    st.markdown(
+        f"""
+Named catches the standard scores buried — ConnectWise ScreenConnect, two Kentico Xperience authentication
+bypasses, a Windows NTLM hash leak — all with near-zero EPSS and no public exploit code when published, all later
+exploited. The 18 that no ranking caught are listed too (`outputs/charts/caught_vs_missed.md`). With only
+{s_bt['positives']} positives, differences of one or two hits are noise; we kept a change only when it helped at
+one cutoff and hurt at none.
+"""
+    )
 
-The top 50 also get a two-line "why fix this next" written by IBM Granite (`granite-3.3-2b-instruct`).
+    st.markdown("### What the model uses")
+    st.markdown(
+        """
+- **Who issued the CVE** (the assigner — usually the vendor's security team) and **the weakness type** (CWE).
+  These are the two strongest features: fifteen issuers account for 72% of real exploitation, and attackers
+  all but ignore cross-site scripting, CSRF and WordPress plugins.
+- **Public exploit signals at the snapshot month**: EPSS, Exploit-DB, Metasploit, Nuclei templates, GitHub proof-of-concept code.
+- **The CVSS v3 vector**: score, attack vector, privileges required, user interaction, impact.
+- **The description** — keyword flags and a TF-IDF text signal.
+- **IBM Granite — "looks like a known-exploited CVE."** `granite-embedding-small-english-r2` embeds every
+  description; for each CVE we measure its cosine similarity to CVEs that were *already on KEV at that time*.
+  The strongest-match similarity is the model's **#4 feature**. Used as plain embedding features instead,
+  Granite did not beat TF-IDF on 39 positives — both results are in `outputs/backtest.md`.
+- **The final score** is a blend of the LightGBM model with the "public exploit code first, then EPSS" ranking.
 
-### What it deliberately does not use
-`nvd_status`, `n_references`, `n_affected_cpes`, `last_modified`, `references.csv` and `affected_products.csv`.
-NIST fills these in after attacks happen, so they leak the answer.
+A two-line **"why fix this next"** for every CVE in the top 100 is written by `granite-3.3-2b-instruct`
+from the description and the model's own reasons.
+"""
+    )
 
-### Keeping it fair — columns used
-Allowed (known at publish / end of snapshot month): `description`, `assigner`, `published`, `cwe_ids`, CVSS v3 score and vector components, and the scoreboard's `epss`, `exploitdb`, `metasploit`, `nuclei`, `poc_github`. Labels come from `known_exploited.csv` (≤ 2025-12-31) for training only.
+    st.markdown("### Keeping it fair — what it deliberately does not use")
+    st.markdown(
+        """
+Today's NVD data leaks the future: NIST analyses exploited CVEs first. So for 2026 the model never sees
+`nvd_status`, `n_references`, `n_affected_cpes`, `last_modified`, `cvss3_source`, `references.csv` (news and
+threat-report links) or `affected_products.csv`. `src/config.py::assert_no_leakage` refuses them. The live 2026
+KEV feed is never used as a feature; our #1 pick (CVE-2026-71362) was checked against it only after the model
+was frozen — it had been added on 2026-09-24.
 
-**Not used for 2026 features:** `nvd_status`, `n_references`, `n_affected_cpes`, `last_modified`, `cvss3_source`, `references.csv`, `affected_products.csv` — NIST fills these in after attacks, so they leak the answer. `src/config.py::assert_no_leakage` enforces this.
+**Used:** `description`, `assigner`, `published` (to split time only), `cwe_ids`, CVSS v3 score and vector
+components, the scoreboard's `epss` / `exploitdb` / `metasploit` / `nuclei` / `poc_github`, and
+`known_exploited.csv` (≤ 2025-12-31) for labels. Full model card: `outputs/MODEL_CARD.md`.
 """
     )
 
