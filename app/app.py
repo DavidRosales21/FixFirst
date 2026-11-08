@@ -11,12 +11,14 @@
 
 import html
 import os
+import math
 import random
 import re
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import json
 
 st.set_page_config(page_title="FixNext — Before the Breach", page_icon="🛡️", layout="wide")
 
@@ -128,6 +130,17 @@ def load_catches(path):
 
 
 @st.cache_data
+def load_exploited(path):
+    """The 39 CVEs of the 2025 hold-out that were later exploited, with their rank under each method (optional file)."""
+    if not os.path.exists(path):
+        return None
+    df = pd.read_csv(path, dtype={"cve_id": str})
+    for col in ["rank_cvss", "rank_epss", "rank_flags_epss", "rank_fixnext"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df.dropna(subset=["rank_fixnext"])
+
+
+@st.cache_data
 def load_profile(path):
     """How the top 500 differs from all 72,670 (optional file)."""
     if not os.path.exists(path):
@@ -140,6 +153,7 @@ def load_profile(path):
 ranked = load_ranked(RANKED_PATH)
 backtest = load_backtest(BACKTEST_PATH)
 catches = load_catches(os.path.join(HERE, "catches.csv"))
+exploited = load_exploited(os.path.join(HERE, "exploited_2025.csv"))
 profile = load_profile(os.path.join(HERE, "profile.json"))
 CHART_DIR = os.path.join(HERE, "..", "outputs", "charts")
 
@@ -287,6 +301,45 @@ CSS = """
 .ff-item .ff-score{color:var(--ff-accent)}
 
 .ff-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:28px;align-items:center;background:var(--ff-layer);padding:28px;animation:ff-rise 700ms var(--ff-ease) both}
+.st-key-ffhero{background:var(--ff-layer);padding:22px 28px 18px;animation:ff-rise 700ms var(--ff-ease) both}
+.st-key-ffhero [data-testid="stHorizontalBlock"]{align-items:center;gap:24px}
+.st-key-ffhero [data-testid="stColumn"]{min-width:min(100%,320px) !important}
+.st-key-ffhero iframe{border-radius:6px;display:block}
+.ff-hero-text h1{margin:0;padding:0;font-weight:300;font-size:clamp(28px,2.8vw,40px);line-height:1.15}
+.ff-hero-text h1 span{color:var(--ff-accent)}
+.ff-hero-text p.ff-note{margin:16px 0 0;font-size:14px;line-height:1.5;color:var(--ff-muted);max-width:30em}
+.ff-hero-cap{margin:6px 0 0;font-size:12px;color:var(--ff-muted);line-height:1.4}
+.ff-slope-title{margin:0 0 4px;font-size:13px;font-weight:500;line-height:1.35}
+.ff-slope{width:100%;height:auto;display:block;font-family:inherit;overflow:visible}
+.ff-slope .zone{fill:currentColor;opacity:.035}
+.ff-slope .col{stroke:currentColor;stroke-opacity:.12;stroke-width:1}
+.ff-slope .tick{font-size:10px;fill:currentColor;fill-opacity:.5;text-anchor:end;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.ff-slope .cut{stroke:currentColor;stroke-opacity:.6;stroke-width:1;stroke-dasharray:4 3}
+.ff-slope .cutlab{font-size:11px;fill:currentColor;fill-opacity:.7}
+.ff-slope .hname{font-size:12px;fill:currentColor;fill-opacity:.7;text-anchor:middle}
+.ff-slope .hcount{font-size:22px;font-weight:500;fill:currentColor;text-anchor:middle;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.ff-slope .hsub{font-size:11px;font-weight:400;fill-opacity:.6;font-family:inherit}
+.ff-slope .hname.me,.ff-slope .hcount.me{fill:var(--ff-accent)}
+.ff-slope .lab{font-size:11px;fill:var(--ff-accent)}
+.ff-slope .cve polyline{fill:none;stroke-width:1.2;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:ff-draw 900ms var(--ff-ease) forwards;animation-delay:calc(120ms + var(--i) * 28ms)}
+.ff-slope .cve circle{opacity:0;animation:ff-pop 300ms ease-out forwards;animation-delay:calc(900ms + var(--i) * 28ms)}
+.ff-slope .cve.missed-by-all polyline{stroke:currentColor;stroke-opacity:.16}
+.ff-slope .cve.missed-by-all circle{fill:currentColor;fill-opacity:.25;r:2.2}
+.ff-slope .cve.baseline-only polyline{stroke:#ff832b;stroke-opacity:.85}
+.ff-slope .cve.baseline-only circle{fill:#ff832b}
+.ff-slope .cve.both polyline{stroke:var(--ff-accent);stroke-opacity:.28;stroke-width:1}
+.ff-slope .cve.both circle{fill:var(--ff-accent);fill-opacity:.55;r:2.4}
+.ff-slope .cve.FixNext-only polyline{stroke:var(--ff-accent);stroke-opacity:1;stroke-width:2.2}
+.ff-slope .cve.FixNext-only circle{fill:var(--ff-accent);r:3.6}
+.ff-slope:hover .cve:not(:hover){opacity:.28}
+.ff-slope .cve:hover polyline{stroke-opacity:1;stroke-width:2.6;stroke:var(--ff-accent)}
+.ff-slope .cve:hover circle{fill:var(--ff-accent);fill-opacity:1;r:4}
+.ff-hero-cap .sw{display:inline-block;width:14px;height:3px;vertical-align:middle;margin:0 5px 0 10px;border-radius:2px}
+.ff-hero-cap .sw.me{background:var(--ff-accent)}.ff-hero-cap .sw.both{background:var(--ff-accent);opacity:.3}
+.ff-hero-cap .sw.base{background:#ff832b}.ff-hero-cap .sw.none{background:currentColor;opacity:.2}
+@keyframes ff-draw{to{stroke-dashoffset:0}}
+@keyframes ff-pop{to{opacity:1}}
+
 .ff-hero h1{margin:0;padding:0;font-weight:300;font-size:clamp(28px,2.8vw,40px);line-height:1.15}
 .ff-hero h1 span{color:var(--ff-accent)}
 .ff-hero p.ff-note{margin:16px 0 0;font-size:14px;line-height:1.5;color:var(--ff-muted);max-width:30em}
@@ -438,6 +491,60 @@ CSS = """
 .ff-how li{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;padding:10px 14px;background:var(--ff-layer);font-size:14px;line-height:1.45}
 .ff-how li i{font-style:normal;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 8px;background:var(--ff-line);white-space:nowrap;margin-top:1px}
 .ff-pagenote{margin:-6px 0 10px;font-size:13px;color:var(--ff-muted)}
+/* Ask FixNext (Gemini): one card, a three-colour accent, pill questions, a highlighted answer */
+[class*="st-key-ffask"]{position:relative;margin-top:18px;padding:20px 22px 18px;background:var(--ff-layer)}
+[class*="st-key-ffask"]::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#4589FF,#A56EFF 50%,#009D9A)}
+.ff-ask-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;margin:0 0 4px}
+.ff-ask-head h2{margin:0;font-size:18px;font-weight:500}
+.ff-ask-chip{font-size:11px;letter-spacing:.3px;padding:3px 9px;border-radius:12px;background:linear-gradient(90deg,rgba(69,137,255,.22),rgba(165,110,255,.22));color:inherit;white-space:nowrap}
+.ff-ask-sub{margin:0 0 12px;font-size:13px;color:var(--ff-muted)}
+[class*="st-key-ffask"] [data-testid="stHorizontalBlock"]{flex-wrap:wrap;gap:8px}
+[class*="st-key-ffask"] [data-testid="stColumn"]{flex:1 1 220px !important;min-width:0 !important;width:auto !important}
+[class*="st-key-ffask"] button{border-radius:24px !important;border:1px solid color-mix(in srgb,#4589FF 55%,transparent) !important;
+  background:transparent !important;min-height:38px;font-size:13px;color:inherit !important;white-space:normal;line-height:1.25}
+@media (hover:hover){[class*="st-key-ffask"] button:hover{background:color-mix(in srgb,#4589FF 14%,transparent) !important;border-color:#4589FF !important}}
+[class*="st-key-ffask"] [data-testid="stTextInput"] input{font-size:15px;min-height:46px}
+.ff-answer{margin:12px 0 0;padding:16px 18px;background:color-mix(in srgb,#4589FF 7%,transparent);border-left:3px solid #4589FF;font-size:15px;line-height:1.55}
+.ff-answer p{margin:0 0 8px}.ff-answer p:last-child{margin:0}
+.ff-answer-meta{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;color:var(--ff-muted)}
+.ff-answer-meta i{display:inline-block;width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#4589FF,#A56EFF)}
+.ff-ask-note{margin:0;font-size:13px;color:var(--ff-muted)}
+/* Floating chat: fixed bottom-right, scrolls with the page; collapses to a round button */
+.st-key-ffchat{position:fixed;right:68px;bottom:40px;z-index:999980;width:min(380px,calc(100vw - 90px));
+  background:var(--ff-bg,Canvas);border:1px solid var(--ff-line);border-radius:14px;overflow:hidden;
+  box-shadow:0 18px 48px rgba(0,0,0,.32),0 2px 6px rgba(0,0,0,.18);padding:14px 16px 14px;font-size:13px}
+.st-key-ffchat::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#4589FF,#A56EFF 50%,#009D9A)}
+.st-key-ffchat_head [data-testid="stHorizontalBlock"]{flex-wrap:nowrap;align-items:center;gap:6px}
+.st-key-ffchat_head [data-testid="stColumn"]:first-child{flex:1 1 auto !important;min-width:0 !important}
+.st-key-ffchat_head [data-testid="stColumn"]:last-child{flex:0 0 36px !important;min-width:36px !important;width:36px !important}
+.st-key-ffchat_quick{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.st-key-ffchat_quick button{justify-content:flex-start;text-align:left;min-height:30px}
+.st-key-ffchat_quick button p{font-size:12.5px}
+.st-key-ffchat_quick button p{white-space:normal !important;text-align:left}
+.st-key-ffchat button{border-radius:20px !important;border:1px solid color-mix(in srgb,#4589FF 55%,transparent) !important;
+  background:transparent !important;min-height:32px;padding:2px 10px !important;font-size:12px;color:inherit !important;white-space:normal;line-height:1.2}
+@media (hover:hover){.st-key-ffchat button:hover{background:color-mix(in srgb,#4589FF 14%,transparent) !important}}
+.st-key-ffchat .st-key-ffchat_hide button{border:1px solid var(--ff-line) !important;min-height:28px;height:28px;width:28px;padding:0 !important;
+  font-size:18px;line-height:1;border-radius:50% !important;color:var(--ff-muted) !important;background:var(--ff-layer) !important}
+.st-key-ffchat .st-key-ffchat_hide button p{margin:0;line-height:1;transform:translateY(-2px)}
+.st-key-ffchat [data-testid="stTextInput"] input{font-size:13.5px;min-height:38px;border-radius:10px}
+.st-key-ffchat [data-testid="stTextInput"] > div > div{border-radius:10px}
+.ff-chat-head{display:flex;align-items:center;gap:10px;margin:0 0 6px}
+.ff-chat-head b{font-size:14px;font-weight:600}
+.st-key-ffchat_head{padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--ff-line)}
+.ff-chat-head .ff-ask-chip{margin-left:auto}
+.ff-chat-log{max-height:min(38vh,300px);overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin:0 0 10px;padding-right:4px;scrollbar-width:thin}
+.ff-msg{max-width:92%;padding:9px 12px;font-size:13.5px;line-height:1.45;border-radius:12px}
+.ff-msg.user{align-self:flex-end;background:color-mix(in srgb,#4589FF 18%,transparent);border-bottom-right-radius:3px}
+.ff-msg.bot{align-self:flex-start;background:var(--ff-layer);border-left:3px solid #4589FF;border-bottom-left-radius:3px}
+.ff-msg.bot small{display:block;margin-top:6px;font-size:11px;color:var(--ff-muted)}
+.ff-chat-empty{margin:0 0 10px;font-size:12.5px;color:var(--ff-muted);line-height:1.45}
+.st-key-ffchat_fab{position:fixed;right:68px;bottom:40px;left:auto;z-index:999980;width:max-content !important}
+.st-key-ffchat_fab > div,.st-key-ffchat_fab [data-testid="stElementContainer"]{width:max-content !important}
+.st-key-ffchat_fab button{border-radius:28px !important;min-height:48px;padding:0 18px !important;font-weight:600;
+  background:linear-gradient(90deg,#4589FF,#A56EFF) !important;color:#fff !important;border:0 !important;box-shadow:0 10px 28px rgba(69,137,255,.4)}
+.st-key-ffchat_fab button p{color:#fff !important}
+@media (max-width:520px){.st-key-ffchat{bottom:12px;right:12px;width:calc(100vw - 24px)}.st-key-ffchat_fab{bottom:12px;right:12px}}
 @media (hover:hover){.ff-theme button:hover::after,.ff-rail button:hover::after{opacity:1}}
 .stMainBlockContainer{padding-right:72px}
 @media (max-width:640px){.stMainBlockContainer{padding-right:60px}}
@@ -483,7 +590,7 @@ html.ff-driving [data-testid="stMainMenuPopover"]{opacity:0 !important;pointer-e
 [data-testid="stPlotlyChart"]{animation:ff-reveal 1.1s var(--ff-ease) .35s backwards}
 
 @media (prefers-reduced-motion:reduce){
-  .ff-dot,.ff-track,.ff-hero,.ff-px.lb,.ff-px.lp,.ff-card,.ff-gauge,.ff-ring,.ff-box,
+  .ff-slope .cve polyline,.ff-slope .cve circle,.ff-dot,.ff-track,.ff-hero,.ff-px.lb,.ff-px.lp,.ff-card,.ff-gauge,.ff-ring,.ff-box,
   [data-testid="stMetric"],[class*="st-key-ffcard"],[data-testid="stPlotlyChart"]{animation:none !important}
   .ff-scan,.ff-ring{display:none}
   .ff-ticker-window{overflow-x:auto}
@@ -740,6 +847,56 @@ def backtest_summary(bt):
     return out
 
 
+SLOPE_COLS = [("rank_cvss", "CVSS first"), ("rank_epss", "EPSS first"),
+              ("rank_flags_epss", "Exploit code, then EPSS"), ("rank_fixnext", "FixNext")]
+SLOPE_LABELS = {"CVE-2025-3935": "ConnectWise ScreenConnect", "CVE-2025-2747": "Kentico Xperience (×2)",
+                "CVE-2025-24054": "Microsoft Windows NTLM"}
+
+
+def slope_chart(df, cut=500):
+    """Every later-exploited CVE of the 2025 hold-out as one line across the four rankings — the proof, as a chart."""
+    W, H, top, bot = 800, 430, 64, 392
+    xs = [70, 258, 446, 634]
+    rmax = max(25_000, int(df[[c for c, _ in SLOPE_COLS]].max().max()))
+    y = lambda r: top + math.log(max(float(r), 1.0)) / math.log(rmax) * (bot - top)
+    ycut = y(cut)
+    order = {"FixNext only": 3, "both": 2, "baseline only": 1, "missed by all": 0}
+    df = df.assign(_o=df["bucket"].map(order).fillna(0)).sort_values(["_o", "rank_fixnext"], ascending=[True, False])
+    parts = [f'<svg class="ff-slope" viewBox="0 0 {W} {H}" role="img" aria-label="Where each ranking put the 39 CVEs that were exploited in 2025">']
+    parts.append(f'<rect x="{xs[0] - 22}" y="{top - 6}" width="{xs[-1] - xs[0] + 44}" height="{ycut - top + 6:.1f}" class="zone"/>')
+    for r, lab in [(1, "#1"), (10, "#10"), (100, "#100"), (1000, "#1,000"), (10000, "#10,000")]:
+        parts.append(f'<text x="{xs[0] - 30}" y="{y(r) + 4:.1f}" class="tick">{lab}</text>')
+    parts.append(f'<line x1="{xs[0] - 22}" x2="{xs[-1] + 22}" y1="{ycut:.1f}" y2="{ycut:.1f}" class="cut"/>')
+    parts.append(f'<text x="{xs[0] - 20}" y="{ycut + 13:.1f}" class="cutlab">top {cut:,} cut — above this line is in the list</text>')
+    for i, (col, name) in enumerate(SLOPE_COLS):
+        n = int((df[col] <= cut).sum())
+        cls = "me" if col == "rank_fixnext" else ""
+        parts.append(f'<line x1="{xs[i]}" x2="{xs[i]}" y1="{top - 6}" y2="{bot + 6}" class="col"/>')
+        parts.append(f'<text x="{xs[i]}" y="26" class="hname {cls}">{esc(name)}</text>')
+        parts.append(f'<text x="{xs[i]}" y="48" class="hcount {cls}">{n}<tspan class="hsub"> in top {cut}</tspan></text>')
+    labels = []
+    for k, (_, r) in enumerate(df.iterrows()):
+        pts = " ".join(f"{xs[i]},{y(r[c]):.1f}" for i, (c, _) in enumerate(SLOPE_COLS))
+        b = str(r["bucket"]).replace(" ", "-")
+        tip = f'{r["cve_id"]} — {str(r["kev_name"]).replace(" Vulnerability", "")}\n' + " · ".join(
+            f'{nm}: #{int(r[c]):,}' for c, nm in SLOPE_COLS)
+        parts.append(f'<g class="cve {b}" style="--i:{k}"><title>{esc(tip)}</title>'
+                     f'<polyline points="{pts}" pathLength="1"/>'
+                     + "".join(f'<circle cx="{xs[i]}" cy="{y(r[c]):.1f}" r="3"/>' for i, (c, _) in enumerate(SLOPE_COLS))
+                     + '</g>')
+        lab = SLOPE_LABELS.get(r["cve_id"])
+        if lab:
+            labels.append([y(r["rank_fixnext"]), lab])
+    # labels: push apart so none overlap (13px minimum gap)
+    labels.sort()
+    for i in range(1, len(labels)):
+        labels[i][0] = max(labels[i][0], labels[i - 1][0] + 13)
+    for ly, lab in labels:
+        parts.append(f'<text x="{xs[-1] + 10}" y="{ly + 4:.1f}" class="lab">{esc(lab)}</text>')
+    parts.append('</svg>')
+    return "".join(parts)
+
+
 def hero(bt):
     s = backtest_summary(bt)
     ours500, base500 = s.get("hits_at_500", (0, 0))
@@ -748,14 +905,26 @@ def hero(bt):
         f"Tested on 2025: {ours500} of the {s['positives']} later-exploited CVEs land in our top 500 — "
         f"the best industry ranking finds {base500}. In the top 100: {ours100} vs {base100}."
     )
-    st.html(
-        '<section class="ff-hero" aria-label="Scan">'
-        '<div><p class="ff-eyebrow">SHERIDAN DATATHON 2026 · IBM TRACK</p>'
-        f'<h1>{SCORED_TOTAL:,} CVEs scored.<br><span>500 to fix next.</span></h1>'
-        f'<p class="ff-note">{esc(note)}</p></div>'
-        f'<div class="ff-field" aria-hidden="true"><div class="ff-grid">{field_cells()}</div>'
-        '<span class="ff-scan"></span></div></section>'
-    )
+    with st.container(key="ffhero"):
+        left, right = st.columns([5, 7], gap="large")
+        left.html(
+            '<div class="ff-hero-text"><p class="ff-eyebrow">SHERIDAN DATATHON 2026 · IBM TRACK</p>'
+            f'<h1>{SCORED_TOTAL:,} CVEs scored.<br><span>500 to fix next.</span></h1>'
+            f'<p class="ff-note">{esc(note)}</p></div>'
+        )
+        with right:
+            if exploited is not None and not exploited.empty:
+                n = len(exploited)
+                # st.markdown, not st.html: Streamlit's HTML sanitizer strips inline SVG
+                st.markdown(f'<p class="ff-slope-title">The {n} CVEs of 2025 that attackers went on to use — where each ranking put them</p>'
+                            + slope_chart(exploited), unsafe_allow_html=True)
+                st.html('<p class="ff-hero-cap"><span class="sw me"></span>caught by FixNext, missed by the best baseline '
+                          '<span class="sw both"></span>caught by both <span class="sw base"></span>baseline only '
+                          '<span class="sw none"></span>missed by every ranking · hover a line for the CVE</p>'
+                        + '<p class="ff-hero-cap">Per-CVE ranks come from a re-fit of the frozen model; it places one borderline CVE (#458) '
+                          'inside the cut that the frozen back-test did not — 20 here, 19 in the headline. The other three columns reconcile exactly.</p>')
+            else:
+                st.html('<p class="ff-hero-cap">Add app/exploited_2025.csv to show the back-test chart.</p>')
 
 
 PAGE_GUIDE = [
@@ -945,39 +1114,126 @@ def ask_gemini(question, context):
         return "The google-genai package isn't installed on this host."
     client = genai.Client(api_key=key)
     last = None
+    prompt = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
     for model in GEMINI_MODELS:
-        try:
-            r = client.models.generate_content(
-                model=model,
-                contents=f"CONTEXT:\n{context}\n\nQUESTION: {question}",
-                config=types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=400),
-            )
-            text = (r.text or "").strip()
-            if text:
-                return text + f"\n\n*{model}*"
-        except Exception as e:  # try the next model name
-            last = e
+        # Newer Flash models "think" before answering and that eats the output budget, so thinking is
+        # turned off where the model allows it, and the budget is generous either way.
+        configs = [
+            types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1500,
+                                        thinking_config=types.ThinkingConfig(thinking_budget=0)),
+            types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1500),
+        ]
+        for cfg in configs:
+            try:
+                r = client.models.generate_content(model=model, contents=prompt, config=cfg)
+                text = (r.text or "").strip()
+                if text:
+                    return text + f"\n\n*{model}*"
+            except Exception as e:  # try the next config / model name
+                last = e
     return f"Gemini didn't answer ({type(last).__name__ if last else 'no response'})."
 
 
 def ask_panel(key, context_fn, placeholder, examples):
-    """A question box backed by Gemini. Hidden (with a short note) when no key is configured."""
-    st.html('<h2 class="ff-h2" style="margin:18px 0 2px">Ask FixNext</h2>'
-            '<p class="ff-sub">Questions answered by Google Gemini from FixNext\'s own numbers — nothing outside the project.</p>')
-    if not gemini_key():
-        st.caption("Ask FixNext runs on the hosted app (fixnext.streamlit.app) and locally with GEMINI_API_KEY set; "
-                   "the in-browser version at fixnext.select has no API key.")
+    """A question box backed by Gemini, in its own card. Shows a short note when no key is configured."""
+    with st.container(key=f"ffask_{key}"):
+        st.html('<div class="ff-ask-head"><h2>Ask FixNext</h2><span class="ff-ask-chip">Google Gemini</span></div>'
+                '<p class="ff-ask-sub">Answers come only from FixNext\'s own numbers and findings — nothing outside the project.</p>')
+        if not gemini_key():
+            st.html('<p class="ff-ask-note">Available on the hosted app (fixnext.streamlit.app) and when running locally with GEMINI_API_KEY set. '
+                    'The in-browser version at fixnext.select keeps no API key.</p>')
+            return
+        cols = st.columns(len(examples))
+        for col, ex in zip(cols, examples):
+            if col.button(ex, key=f"{key}_ex_{abs(hash(ex)) % 10_000}", width="stretch"):
+                st.session_state[f"{key}_q"] = ex
+        q = st.text_input("Your question", key=f"{key}_q", placeholder=placeholder, label_visibility="collapsed")
+        if q:
+            with st.spinner("Asking Gemini…"):
+                answer = ask_gemini(q, context_fn())
+            if answer:
+                model = ""
+                if answer.rstrip().endswith("*") and "\n\n*" in answer:
+                    answer, model = answer.rsplit("\n\n*", 1)
+                    model = model.rstrip("*")
+                paras = "".join(f"<p>{esc(x.strip())}</p>" for x in answer.split("\n") if x.strip())
+                meta = f'<div class="ff-answer-meta"><i></i>{esc(model)}</div>' if model else ""
+                st.html(f'<div class="ff-answer">{paras}{meta}</div>')
+
+
+CHAT_QUICK = {
+    "Overview": ["Why does FixNext beat EPSS?", "What did it catch that EPSS missed?", "Which vendors dominate the top 500?"],
+    "Fix-Next List": ["What's the EPSS rank column?", "How do I get the top 500 file?", "Why are so many low-EPSS CVEs here?"],
+    "CVE Detail": ["Why is it ranked above its EPSS?", "What does an attacker gain?", "Which exploited CVEs does it resemble?"],
+    "Methodology": ["How was it tested?", "What does the model refuse to use?", "How is IBM Granite used?"],
+}
+
+
+def _chat_submit():
+    q = st.session_state.get("ffchat_in", "").strip()
+    if not q:
         return
-    cols = st.columns(len(examples))
-    for col, ex in zip(cols, examples):
-        if col.button(ex, key=f"{key}_ex_{abs(hash(ex)) % 10_000}", width="stretch"):
-            st.session_state[f"{key}_q"] = ex
-    q = st.text_input("Your question", key=f"{key}_q", placeholder=placeholder, label_visibility="collapsed")
-    if q:
-        with st.spinner("Asking Gemini…"):
-            answer = ask_gemini(q, context_fn())
-        if answer:
-            st.markdown(answer)
+    st.session_state["ffchat_in"] = ""
+    st.session_state["ffchat_pending"] = q
+
+
+def _chat_quick(q):
+    st.session_state["ffchat_pending"] = q
+
+
+def floating_chat(current_page, context_fn):
+    """A small chat pinned to the bottom-right corner on every page. Hidden entirely when no key is set."""
+    if not gemini_key():
+        return
+    if "ffchat_open" not in st.session_state:
+        st.session_state["ffchat_open"] = False
+    msgs = st.session_state.setdefault("ffchat_msgs", [])
+
+    if not st.session_state["ffchat_open"]:
+        with st.container(key="ffchat_fab"):
+            if st.button("Ask FixNext", key="ffchat_openbtn"):
+                st.session_state["ffchat_open"] = True
+                st.rerun()
+        return
+
+    with st.container(key="ffchat"):
+        with st.container(key="ffchat_head"):
+            head, hide = st.columns([8, 1])
+            head.html('<div class="ff-chat-head"><b>Ask FixNext</b><span class="ff-ask-chip">Google Gemini</span></div>')
+            with hide:
+                with st.container(key="ffchat_hide"):
+                    if st.button("–", key="ffchat_closebtn", help="Hide the chat"):
+                        st.session_state["ffchat_open"] = False
+                        st.rerun()
+
+        pending = st.session_state.pop("ffchat_pending", None)
+        if pending:
+            msgs.append(("user", pending, ""))
+            with st.spinner("Asking Gemini…"):
+                answer = ask_gemini(pending, context_fn()) or "No answer."
+            model = ""
+            if answer.rstrip().endswith("*") and "\n\n*" in answer:
+                answer, model = answer.rsplit("\n\n*", 1)
+                model = model.rstrip("*")
+            msgs.append(("bot", answer, model))
+            del msgs[:-12]   # keep the last 6 exchanges
+
+        if msgs:
+            log = "".join(
+                f'<div class="ff-msg {role}">{esc(text)}{f"<small>{esc(model)}</small>" if role == "bot" and model else ""}</div>'
+                for role, text, model in msgs
+            )
+            st.html(f'<div class="ff-chat-log">{log}</div>')
+        else:
+            st.html('<p class="ff-chat-empty">Ask anything about the ranking, the model, or the CVE you\'re looking at. '
+                    'Answers use only FixNext\'s own numbers.</p>')
+
+        quick = CHAT_QUICK.get(current_page, CHAT_QUICK["Overview"])
+        if not msgs:   # quick questions only until the conversation starts, to keep the panel short
+            with st.container(key="ffchat_quick"):
+                for q in quick:
+                    st.button(q, key=f"ffchat_q_{abs(hash(q)) % 100_000}", on_click=_chat_quick, args=(q,), width="stretch")
+        st.text_input("Ask", key="ffchat_in", placeholder="Type a question and press Enter", label_visibility="collapsed", on_change=_chat_submit)
 
 
 def cve_card(row, eyebrow, with_signals=True, with_similar=False):
@@ -1289,8 +1545,8 @@ if page == "Overview":
         with st.container(key="ffcard_catches"):
             catches_section(catches)
 
-        with st.container(key="ffask_overview"):
-            ask_panel("ask_ov", project_context, "e.g. Why does FixNext beat EPSS? Which vendors dominate the top 500?",
+        if True:
+            ask_panel("ov", project_context, "e.g. Why does FixNext beat EPSS? Which vendors dominate the top 500?",
                       ["Why does FixNext beat EPSS?", "What did it catch that EPSS missed?", "What does the model refuse to use?"])
 
         # Full width: weakness names are long, a third of the page cuts them off.
@@ -1344,7 +1600,7 @@ elif page == "CVE Detail":
     st.html(f'<div class="ff-box"><h2>Why fix this next</h2><p>{body}</p></div>')
     vs_strip(row)
     how_model_sees(row)
-    ask_panel("ask_cve", lambda: project_context() + "\n\n" + cve_context(row),
+    ask_panel("cve", lambda: project_context() + "\n\n" + cve_context(row),
               f"e.g. Why is {row['cve_id']} ranked above its EPSS? What would an attacker gain?",
               ["Why is it ranked above its EPSS?", "What does an attacker gain?", "Which exploited CVEs does it resemble?"])
 
@@ -1443,3 +1699,8 @@ components, the scoreboard's `epss` / `exploitdb` / `metasploit` / `nuclei` / `p
     )
 
 footer()
+
+if page == "CVE Detail" and "row" in globals():
+    floating_chat(page, lambda: project_context() + "\n\n" + cve_context(row))
+else:
+    floating_chat(page, project_context)
