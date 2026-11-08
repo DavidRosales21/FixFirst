@@ -5,4 +5,4 @@ lightgbm==4.7.0
 pyarrow>=14
 streamlit>=1.67,<2
 plotly>=5.18
-google-genai>=1.0
+google-genai==3.0.0

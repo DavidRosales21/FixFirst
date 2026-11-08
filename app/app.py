@@ -1593,7 +1593,7 @@ def ask_gemini(question, context):
         from google.genai import types
     except Exception:
         return "The google-genai package isn't installed on this host."
-    client = genai.Client(api_key=key)
+    client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=20_000))  # ms — never hang the page
     last = None
     prompt = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
     for model in GEMINI_MODELS:
@@ -1612,7 +1612,9 @@ def ask_gemini(question, context):
                     return text + f"\n\n*{model}*"
             except Exception as e:  # try the next config / model name
                 last = e
-    return f"Gemini didn't answer ({type(last).__name__ if last else 'no response'})."
+                if "Timeout" in type(e).__name__ or "timed out" in str(e).lower():  # network problem: other models won't help
+                    return f"Gemini didn't answer in time ({type(e).__name__}). Try again in a few seconds."
+    return f"Gemini didn't answer ({type(last).__name__ + ': ' + str(last)[:200] if last else 'no response'})."
 
 
 def ask_panel(key, context_fn, placeholder, examples):
