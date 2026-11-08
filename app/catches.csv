@@ -1,0 +1,21 @@
+cve_id,kev_name,kev_vendor,cwe_name,cvss3_score,epss,rank_fixnext,rank_epss,rank_flags_epss,lag_days,known_ransomware_use,bucket
+CVE-2025-3248,Langflow Missing Authentication Vulnerability,Langflow,Missing Authentication for Critical Function,9.8,0.83493,2,3,3,28,Known,both
+CVE-2025-24813,Apache Tomcat Path Equivalence Vulnerability,Apache,Path Equivalence: 'file.name' (Internal Dot),9.8,0.88822,3,1,1,22,Unknown,both
+CVE-2025-2776,SysAid On-Prem Improper Restriction of XML External Entity Reference Vulnerability,SysAid,Improper Restriction of XML External Entity Reference,9.8,0.11026,4,54,36,76,Unknown,both
+CVE-2025-34028,Commvault Command Center Path Traversal Vulnerability,Commvault,Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal'),10.0,0.04235,6,97,53,10,Unknown,both
+CVE-2025-2775,SysAid On-Prem Improper Restriction of XML External Entity Reference Vulnerability,SysAid,Improper Restriction of XML External Entity Reference,7.5,0.06555,7,71,45,76,Unknown,both
+CVE-2025-4008,Smartbedded Meteobridge Command Injection Vulnerability,Smartbedded,Missing Authentication for Critical Function,8.8,0.00348,12,500,104,134,Unknown,both
+CVE-2025-27363,FreeType Out-of-Bounds Write Vulnerability,FreeType,Out-of-bounds Write,8.1,0.04114,14,99,54,56,Unknown,both
+CVE-2025-33073,Microsoft Windows SMB Client Improper Access Control Vulnerability,Microsoft,Improper Access Control,8.8,0.00323,16,545,107,132,Unknown,both
+CVE-2025-32433,Erlang Erlang/OTP SSH Server Missing Authentication for Critical Function Vulnerability,Erlang,Missing Authentication for Critical Function,10.0,0.03624,19,107,57,54,Unknown,both
+CVE-2025-5777,Citrix NetScaler ADC and Gateway Out-of-Bounds Read Vulnerability,Citrix,Out-of-bounds Read,7.5,0.00055,25,3797,231,23,Known,both
+CVE-2025-6218,RARLAB WinRAR Path Traversal Vulnerability,RARLAB,Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal'),7.8,0.00649,27,305,87,171,Unknown,both
+CVE-2024-57727,SimpleHelp Path Traversal Vulnerability,SimpleHelp ,Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal'),7.5,0.00466,34,384,93,29,Known,both
+CVE-2025-5086,Dassault Systèmes DELMIA Apriso Deserialization of Untrusted Data Vulnerability,Dassault Systèmes,Deserialization of Untrusted Data,9.0,0.18937,38,24,24,101,Unknown,both
+CVE-2025-24893,XWiki Platform Eval Injection Vulnerability,XWiki,Improper Control of Generation of Code ('Code Injection'),9.8,0.00064,105,3009,217,252,Unknown,both
+CVE-2025-3935,ConnectWise ScreenConnect Improper Authentication Vulnerability,ConnectWise,Deserialization of Untrusted Data,7.2,0.00195,189,851,1176,38,Unknown,FixNext only
+CVE-2025-24016,Wazuh Server Deserialization of Untrusted Data Vulnerability,Wazuh,Deserialization of Untrusted Data,9.9,0.00043,223,9491,369,120,Unknown,both
+CVE-2025-20281,Cisco Identity Services Engine Injection Vulnerability,Cisco,Improper Neutralization of Special Elements in Output Used by a Downstream Component ('Injection'),10.0,0.00109,329,1597,161,33,Unknown,both
+CVE-2025-2747,Kentico Xperience CMS Authentication Bypass Using an Alternate Path or Channel Vulnerability,Kentico,Authentication Bypass Using an Alternate Path or Channel,9.8,0.00118,369,1442,1747,210,Unknown,FixNext only
+CVE-2025-2746,Kentico Xperience CMS Authentication Bypass Using an Alternate Path or Channel Vulnerability,Kentico,Authentication Bypass Using an Alternate Path or Channel,9.8,0.00118,383,1441,1746,210,Unknown,FixNext only
+CVE-2025-24054,Microsoft Windows NTLM Hash Disclosure Spoofing Vulnerability,Microsoft,External Control of File Name or Path,5.4,0.00123,458,1395,1702,37,Unknown,FixNext only
