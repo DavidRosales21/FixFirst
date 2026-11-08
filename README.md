@@ -8,7 +8,7 @@
 [![fixnext.select](https://img.shields.io/badge/Also%20at-fixnext.select-1f2937?style=for-the-badge)](https://fixnext.select)
 
 ![IBM Granite](https://img.shields.io/badge/IBM%20Granite-embeddings%20%2B%20LLM-0F62FE?logo=ibm&logoColor=white)
-![Google Gemini](https://img.shields.io/badge/Google%20Gemini-Ask%20FixNext-3FBF84)
+![Google Gemini](https://img.shields.io/badge/Google%20Gemini-Ask%20%C2%B7%20tickets%20%C2%B7%20briefing-3FBF84)
 ![LightGBM](https://img.shields.io/badge/LightGBM-4.7-2E7D32)
 ![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
@@ -16,7 +16,7 @@
 
 <a href="https://fixnext.streamlit.app"><img src="docs/dashboard.png" alt="FixNext dashboard" width="900"></a>
 
-*Team: Hossam · David · Antesh · Calvin* · **Model card for judges → [outputs/MODEL_CARD.md](outputs/MODEL_CARD.md)** · **Demo video → (link added Sunday)**
+*Team: Hossam · David · Antesh · Calvin* · **Model card for judges → [outputs/MODEL_CARD.md](outputs/MODEL_CARD.md)** · **Demo video → [youtu.be/ml9asW7tW0Q](https://youtu.be/ml9asW7tW0Q)**
 
 </div>
 
@@ -85,13 +85,22 @@ Live at **[fixnext.streamlit.app](https://fixnext.streamlit.app)** (Streamlit Co
 | **CVE Detail** | One CVE: its rank under every method, how the model reads it (issuer, weakness, Granite similarity, exploit code, EPSS), the three exploited CVEs it resembles, the Granite rationale, the NVD link. |
 | **Methodology** | How it was tested, what it uses, and what it refuses to use. |
 
-**Ask FixNext** — a Google Gemini assistant (floating pill, bottom-right) answers questions about the project and about the CVE on screen, from the project's own numbers and findings only. It needs a Gemini API key: on Streamlit Cloud it is a secret (`GEMINI_API_KEY` in the app's Secrets), locally an environment variable; the key is never in this repository. fixnext.select runs without a key, so it has no chat by design.
+### Google Gemini in the dashboard
+Gemini does three jobs, all grounded in FixNext's own data (the ranking, the signals, the back-test, the findings) and none of them touches the ranking itself:
+
+| Where | What Gemini does | How |
+|---|---|---|
+| Every page — **Ask FixNext** (floating pill) | Answers questions about the project and about the CVE on screen, from our numbers only; says "that isn't in FixNext's data" otherwise | `gemini-2.5-flash` via `google-genai`, system rules + project/CVE context, thinking off |
+| CVE Detail — **Draft the fix ticket** | Turns the CVE's signals into a ticket: P1/P2/P3, owner, due date, why now, actions, open question — downloadable as Markdown for Jira / GitHub issues | structured output (`response_schema`, JSON) |
+| Fix-Next List — **Monday briefing** | Writes the week's patch briefing for whatever the filters currently show (top 5 to fix with reasons, what EPSS would miss, a caveat); flags itself stale when the filters change | structured output; reads the live filter state |
+
+It needs a Gemini API key: on Streamlit Cloud it is a secret (`GEMINI_API_KEY` in the app's Secrets), locally an environment variable; the key is never in this repository. fixnext.select runs in the browser without secrets, so the three Gemini features hide themselves there by design.
 
 The showcase stage is three.js (loaded from jsDelivr) inside a Streamlit iframe; everything else is Streamlit + Plotly + hand-written SVG. Light and dark themes (switch top-right). All dashboard data is the frozen ranking in `app/` — no live feeds, no model calls at run time.
 
 ## 🚀 Quick start — the dashboard (3 commands, no data download needed)
 ```bash
-git clone https://github.com/DavidRosales21/FixFirst.git && cd FixFirst
+git clone https://github.com/DavidRosales21/FixNext.git && cd FixNext
 python -m pip install -r requirements.txt
 python -m streamlit run app/app.py
 ```
