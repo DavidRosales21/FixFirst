@@ -934,13 +934,23 @@ if page == "Overview":
                 )
         with col2:
             with st.container(key="ffcard_vendors"):
-                chart_heading("Top vendors in the top 500", "Top 10 by number of CVEs")
+                chart_heading("Top vendors in the top 500", "Top 10 named vendors by number of CVEs")
                 if top500.empty:
                     st.caption("None of the filtered CVEs are in the top 500.")
                 else:
-                    counts = top500["vendor_guess"].value_counts().head(10)
-                    bar_chart(counts.index.tolist(), counts.tolist(), TEAL,
-                              [f"{v}: {n} CVEs in the top 500" for v, n in counts.items()])
+                    # "other" (no tracked vendor named in the description) would dwarf every real
+                    # vendor, so it is left out of the bars and counted in a footnote instead.
+                    all_counts = top500["vendor_guess"].value_counts()
+                    n_other = int(all_counts.get("other", 0))
+                    counts = all_counts.drop("other", errors="ignore").head(10)
+                    if counts.empty:
+                        st.caption("None of these CVEs name a tracked vendor.")
+                    else:
+                        bar_chart(counts.index.tolist(), counts.tolist(), TEAL,
+                                  [f"{v}: {n} CVEs in the top 500" for v, n in counts.items()])
+                    if n_other:
+                        st.caption(f"Not shown: {n_other:,} of these {len(top500):,} CVEs ({n_other / len(top500):.0%}) "
+                                   "don't name one of the vendors the model tracks (\"other\").")
         # Full width: weakness names are long, a third of the page cuts them off.
         with st.container(key="ffcard_cwe"):
             chart_heading("Top weakness types in the top 500", "Top 10, names shortened to 40 characters")
