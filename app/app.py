@@ -1517,7 +1517,9 @@ def how_model_sees(row):
 
 # ---------------------------------------------------------------- Ask FixNext (Gemini)
 
-GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite"]
+# Stable Flash first (fast, least congested), then the newest Flash, then Flash-Lite. Quota is per model,
+# so a 429 on one still leaves the next one. Names from aistudio.google.com/docs/models (Nov 2026).
+GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"]
 
 
 def gemini_key():
@@ -1597,11 +1599,12 @@ def ask_gemini(question, context):
     errs = []
     prompt = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
     for model in GEMINI_MODELS:
-        # Newer Flash models "think" before answering and that eats the output budget, so thinking is
-        # turned off where the model allows it, and the budget is generous either way.
+        # Gemini 3.x models "think" before answering, which is slow and eats the output budget, so thinking
+        # is set to its minimum (3.x uses thinking_level; thinking_budget was the 2.x knob). If a model
+        # rejects that, the second config asks again with the model's default.
         configs = [
             types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1024,
-                                        thinking_config=types.ThinkingConfig(thinking_budget=0)),
+                                        thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.MINIMAL)),
             types.GenerateContentConfig(system_instruction=SYSTEM_RULES, temperature=0.2, max_output_tokens=1024),
         ]
         for i, cfg in enumerate(configs):
@@ -1616,6 +1619,8 @@ def ask_gemini(question, context):
                 errs.append(f"{model}#{i}: {type(e).__name__} {str(e)[:150]}")
                 if "Timeout" in type(e).__name__ or "timed out" in str(e).lower():  # network problem: other models won't help
                     return f"Gemini didn't answer in time ({type(e).__name__}). Try again in a few seconds."
+                if getattr(e, "code", None) in (404, 429, 500, 503, 504):
+                    break   # unknown model / quota / overloaded: the other config won't help, so don't spend a call on it
     return "Gemini didn't answer — " + " | ".join(errs)
 
 
