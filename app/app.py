@@ -1906,7 +1906,7 @@ def fix_ticket_panel(row):
                     "why_now: 3-5 short bullets citing the rank, EPSS, exploit code, issuer/weakness lift and the exploited CVEs it resembles. "
                     "actions: 3-6 concrete steps (inventory, patch/mitigate, verify, monitor). what_we_dont_know: one sentence.",
                     project_context() + "\n\n" + cve_context(row), TICKET_SCHEMA)
-            st.session_state[f"ticket_{cve_id}"] = (data, model)
+                st.session_state[f"ticket_{cve_id}"] = (data, model)   # before the spinner closes (see floating_chat)
         got = st.session_state.get(f"ticket_{cve_id}")
         if got:
             data, model = got
@@ -1968,7 +1968,7 @@ def briefing_panel(df):
                     "(vendors, weakness types, exploit code, EPSS). fix_this_week: the 5 CVEs to fix first, each with a one-line reason citing its signals. "
                     "epss_would_miss: one sentence on how many of these an EPSS-first list would surface and why. caveat: one honest sentence on what the model cannot know.",
                     project_context() + "\n\n" + briefing_context(df), BRIEF_SCHEMA)
-            st.session_state["brief"] = (sig, data, model)
+                st.session_state["brief"] = (sig, data, model)   # before the spinner closes (see floating_chat)
         got = st.session_state.get("brief")
         if got:
             bsig, data, model = got
@@ -2063,12 +2063,15 @@ def floating_chat(current_page, context_fn):
             msgs.append(("user", pending, ""))
             with st.spinner("Asking Gemini…"):
                 answer = ask_gemini(pending, context_fn()) or "No answer."
-            model = ""
-            if answer.rstrip().endswith("*") and "\n\n*" in answer:
-                answer, model = answer.rsplit("\n\n*", 1)
-                model = model.rstrip("*")
-            msgs.append(("bot", answer, model))
-            del msgs[:-12]   # keep the last 6 exchanges
+                # Store the answer BEFORE the spinner closes. Closing it is a Streamlit call, and if the person
+                # clicked anything while Gemini was thinking (another page, a button), Streamlit stops this run
+                # right there for the rerun, so anything after it would never run and the answer would be lost.
+                model = ""
+                if answer.rstrip().endswith("*") and "\n\n*" in answer:
+                    answer, model = answer.rsplit("\n\n*", 1)
+                    model = model.rstrip("*")
+                msgs.append(("bot", answer, model))
+                del msgs[:-12]   # keep the last 6 exchanges
 
         if msgs:
             log = "".join(
