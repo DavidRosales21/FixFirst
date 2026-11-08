@@ -1497,11 +1497,13 @@ TEAM = [
      "Set up the GitHub repo and Streamlit Community Cloud, kept fixnext.streamlit.app rebuilding from main, saved the Devpost draft before the 8 PM gate, and diagnosed the Gemini-on-Cloud bug on Sunday morning.",
      "David is a Computer Science student at Sheridan College and a passionate software developer from Colombia. He enjoys building practical technology solutions, exploring AI, cloud computing and software development. "
      "As the creator of StudIA Notes, he is driven by turning ideas into real-world applications. Always curious and eager to learn, he enjoys collaborating with others and tackling challenging problems through technology.", "teal"),
-    ("Calvin Aremu", "Computer Science", "IBM Granite · video",
+    ("Calvin Aremu", "Computer Science — Cloud Computing", "IBM Granite · video",
      "Ran granite-embedding on 180,308 CVE descriptions on Colab, generated the Granite rationales for the top 100, and voiced and recorded the demo video.",
-     "", "violet"),
-    ("Antesh Sharma", "Computer Science", "Words · judges' page",
-     "Shaped the note to the judges and kept the team honest about what a judge actually wants to hear.",
+     "Calvin is a Computer Science student specializing in Cloud Computing at Sheridan College, with AI and automation experience at Vodafone Ireland. "
+     "He enjoys building practical solutions using cloud technologies and AI.", "violet"),
+    ("Antesh Sharma", "Computer Science", "QA · release checks · judges' page",
+     "Tested every dashboard release end to end before it went live — filters, the CVE pages, both hosts, light and dark — reported what broke, "
+     "and shaped the note to the judges so it says what a judge actually wants to hear.",
      "Computer Science student and developer passionate about cloud computing, software architecture, and building practical digital solutions. "
      "He enjoys bridging the gap between solid back-end engineering and clean, intuitive user interfaces that solve real-world problems.", "amber"),
 ]
